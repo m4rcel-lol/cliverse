@@ -147,7 +147,7 @@ func settingsAddKey(ctx *Context) error {
 	// Use the key type + first 8 chars of fingerprint as name
 	parts := strings.Fields(keyStr)
 	name := parts[0]
-	if len(fp) > 12 {
+	if len(fp) > 8 {
 		name += " " + fp[len(fp)-8:]
 	}
 

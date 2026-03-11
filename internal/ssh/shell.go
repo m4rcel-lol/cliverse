@@ -55,7 +55,7 @@ func (s *Shell) Handle(sess gossh.Session, user *models.User, sessionID uuid.UUI
 	s.writeBanner(sess, user)
 
 	// Show dashboard summary on login
-	s.writeDashboard(sess, ctx, user)
+	s.writeDashboard(sess, ctx, user, time.Now())
 
 	history := make([]string, 0, 50)
 	historyIdx := -1
@@ -235,7 +235,8 @@ func (s *Shell) writeBanner(w io.Writer, user *models.User) {
 }
 
 // writeDashboard prints a quick summary of the user's account state.
-func (s *Shell) writeDashboard(w io.Writer, ctx context.Context, user *models.User) {
+// connectedAt should be captured when the session begins.
+func (s *Shell) writeDashboard(w io.Writer, ctx context.Context, user *models.User, connectedAt time.Time) {
 	unread, _ := s.db.CountUnreadNotifications(ctx, user.ID)
 	posts, _ := s.db.ListPostsByUser(ctx, user.ID, 5, 0)
 
@@ -259,8 +260,7 @@ func (s *Shell) writeDashboard(w io.Writer, ctx context.Context, user *models.Us
 
 	fmt.Fprintf(w, "\r\n")
 
-	// Show last activity timestamp
-	fmt.Fprintf(w, "  Connected at:  %s\r\n\r\n", time.Now().Format("2006-01-02 15:04 UTC"))
+	fmt.Fprintf(w, "  Connected at:  %s\r\n\r\n", connectedAt.UTC().Format("2006-01-02 15:04 UTC"))
 }
 
 // clearLine erases the current line content from the terminal.

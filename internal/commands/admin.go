@@ -220,7 +220,7 @@ func adminAddKey(ctx *Context) error {
 
 	parts := strings.Fields(keyStr)
 	name := parts[0]
-	if len(fp) > 12 {
+	if len(fp) > 8 {
 		name += " " + fp[len(fp)-8:]
 	}
 

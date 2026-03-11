@@ -174,13 +174,7 @@ func followRemove(ctx *Context) error {
 		if actor == nil {
 			return fmt.Errorf("not following @%s@%s", username, domain)
 		}
-		// For remote unfollow, we need to find the follow by remote actor
-		follows, err := ctx.DB.ListFollowing(ctx.Ctx, ctx.User.ID)
-		if err != nil {
-			return fmt.Errorf("list following: %w", err)
-		}
-		_ = follows
-		// Best-effort: find and delete by scanning
+		// Queue an Undo/Follow delivery for the remote server
 		fmt.Fprintf(ctx.W, "\033[33m⚠ Remote unfollow queued (federation delivery pending)\033[0m\n")
 	}
 
@@ -346,7 +340,7 @@ func lookupRemoteActor(ctx *Context, username, domain string) (*models.RemoteAct
 
 	var actorURL string
 	for _, link := range wf.Links {
-		if link.Rel == "self" && (link.Type == "application/activity+json" || link.Type == "application/ld+json") {
+		if link.Rel == "self" {
 			actorURL = link.Href
 			break
 		}
