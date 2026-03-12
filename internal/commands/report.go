@@ -77,6 +77,9 @@ func reportPost(ctx *Context) error {
 	if post == nil {
 		return fmt.Errorf("post not found: %s", ctx.Args[1])
 	}
+	if post.AuthorID == ctx.User.ID {
+		return fmt.Errorf("you cannot report your own post")
+	}
 
 	reason := ctx.Args[2]
 	if len(strings.TrimSpace(reason)) == 0 {

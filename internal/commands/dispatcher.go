@@ -67,6 +67,13 @@ func (d *Dispatcher) Register(name string, handler HandlerFunc) {
 
 // Dispatch looks up and calls the handler for the given command.
 func (d *Dispatcher) Dispatch(ctx *Context, command string, args []string) error {
+	// Enforce maintenance mode: only admins may use commands.
+	if !ctx.User.IsAdmin {
+		if val, err := d.db.GetSystemConfig(ctx.Ctx, "maintenance_mode"); err == nil && val == "true" {
+			return fmt.Errorf("the instance is in maintenance mode. Please try again later.")
+		}
+	}
+
 	handler, ok := d.handlers[command]
 	if !ok {
 		return fmt.Errorf("unknown command: %s. Type 'help' for available commands.", command)

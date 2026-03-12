@@ -34,9 +34,12 @@ func draftNew(ctx *Context) error {
 		return fmt.Errorf("usage: draft new \"content\"")
 	}
 
-	content := ctx.Args[1]
+	content := stripHTMLTags(ctx.Args[1])
 	if len(content) == 0 {
 		return fmt.Errorf("draft content cannot be empty")
+	}
+	if len(content) > ctx.Config.MaxPostLength {
+		return fmt.Errorf("draft too long: %d chars (max %d)", len(content), ctx.Config.MaxPostLength)
 	}
 
 	now := time.Now()
@@ -89,6 +92,15 @@ func draftPost(ctx *Context) error {
 		return err
 	}
 
+	// Validate draft content before posting.
+	content := stripHTMLTags(draft.Content)
+	if len(content) == 0 {
+		return fmt.Errorf("draft content is empty after sanitization")
+	}
+	if len(content) > ctx.Config.MaxPostLength {
+		return fmt.Errorf("draft too long to post: %d chars (max %d)", len(content), ctx.Config.MaxPostLength)
+	}
+
 	// Create the post from draft content
 	localID := strings.ReplaceAll(uuid.New().String(), "-", "")[:8]
 	apID := fmt.Sprintf("https://%s/users/%s/posts/%s", ctx.Config.Domain, ctx.User.Username, localID)
@@ -97,7 +109,7 @@ func draftPost(ctx *Context) error {
 		ID:            uuid.New(),
 		LocalID:       localID,
 		AuthorID:      ctx.User.ID,
-		Content:       draft.Content,
+		Content:       content,
 		Visibility:    draft.Visibility,
 		ActivityPubID: apID,
 		Deleted:       false,

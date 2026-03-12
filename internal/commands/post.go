@@ -46,6 +46,12 @@ func postCreate(ctx *Context, visibility string, localOnly bool) error {
 		return fmt.Errorf("post too long: %d chars (max %d)", len(content), ctx.Config.MaxPostLength)
 	}
 
+	// Silenced users can only post locally.
+	if ctx.User.IsSilenced {
+		localOnly = true
+		visibility = models.VisibilityUnlisted
+	}
+
 	localID := strings.ReplaceAll(uuid.New().String(), "-", "")[:8]
 	apID := fmt.Sprintf("https://%s/users/%s/posts/%s", ctx.Config.Domain, ctx.User.Username, localID)
 	if localOnly {
@@ -84,6 +90,10 @@ func postReply(ctx *Context) error {
 
 	parentLocalID := ctx.Args[1]
 	content := stripHTMLTags(ctx.Args[2])
+
+	if len(content) == 0 {
+		return fmt.Errorf("reply content cannot be empty")
+	}
 
 	parent, err := ctx.DB.GetPostByLocalID(ctx.Ctx, parentLocalID)
 	if err != nil {
