@@ -28,8 +28,8 @@ const (
 	argon2KeyLen  = 32
 	argon2SaltLen = 32
 
-	rateLimitMax     = 10
-	rateLimitWindow  = 15 * time.Minute
+	rateLimitMax    = 10
+	rateLimitWindow = 15 * time.Minute
 )
 
 // HashPassword hashes a password using Argon2id and returns the formatted hash string.

@@ -6,7 +6,12 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"time"
 )
+
+// fetchClient is a shared HTTP client with a reasonable timeout used for
+// outbound ActivityPub requests (actor/note fetches, WebFinger lookups).
+var fetchClient = &http.Client{Timeout: 15 * time.Second}
 
 // FetchActor fetches and parses a remote ActivityPub actor.
 func FetchActor(ctx context.Context, actorURL string) (*Actor, error) {
@@ -16,7 +21,7 @@ func FetchActor(ctx context.Context, actorURL string) (*Actor, error) {
 	}
 	req.Header.Set("Accept", "application/activity+json")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := fetchClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("activitypub/fetch: GET %s: %w", actorURL, err)
 	}
@@ -41,7 +46,7 @@ func FetchNote(ctx context.Context, noteURL string) (*Note, error) {
 	}
 	req.Header.Set("Accept", "application/activity+json")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := fetchClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("activitypub/fetch: GET %s: %w", noteURL, err)
 	}
@@ -70,7 +75,7 @@ func WebFinger(ctx context.Context, username, domain string) (*Actor, error) {
 	}
 	req.Header.Set("Accept", "application/json")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := fetchClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("activitypub/webfinger: GET %s: %w", wfURL, err)
 	}
@@ -86,16 +91,16 @@ func WebFinger(ctx context.Context, username, domain string) (*Actor, error) {
 	}
 
 	// Find the self link with type application/activity+json.
-	var actorURL string
+	var actorHref string
 	for _, link := range wf.Links {
 		if link.Rel == "self" && link.Type == "application/activity+json" {
-			actorURL = link.Href
+			actorHref = link.Href
 			break
 		}
 	}
-	if actorURL == "" {
+	if actorHref == "" {
 		return nil, fmt.Errorf("activitypub/webfinger: no activity+json self link for %s@%s", username, domain)
 	}
 
-	return FetchActor(ctx, actorURL)
+	return FetchActor(ctx, actorHref)
 }

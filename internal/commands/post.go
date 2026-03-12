@@ -19,7 +19,7 @@ func HandlePost(ctx *Context) error {
 	case "global":
 		return postCreate(ctx, models.VisibilityPublic, false)
 	case "local":
-		return postCreate(ctx, models.VisibilityPublic, true)
+		return postCreate(ctx, models.VisibilityUnlisted, true)
 	case "reply":
 		return postReply(ctx)
 	case "delete":

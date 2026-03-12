@@ -258,6 +258,11 @@ func (s *Shell) writeDashboard(w io.Writer, ctx context.Context, user *models.Us
 		fmt.Fprintf(w, "  %s⚠ Your account is silenced. Posts are visible locally only.%s\r\n", ColorYellow, ColorReset)
 	}
 
+	// Show message of the day if configured.
+	if motd, err := s.db.GetSystemConfig(ctx, "motd"); err == nil && motd != "" {
+		fmt.Fprintf(w, "\r\n  %s📢 %s%s\r\n", ColorMagenta, motd, ColorReset)
+	}
+
 	fmt.Fprintf(w, "\r\n")
 
 	fmt.Fprintf(w, "  Connected at:  %s\r\n\r\n", connectedAt.UTC().Format("2006-01-02 15:04 UTC"))
