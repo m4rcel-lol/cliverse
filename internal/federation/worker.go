@@ -76,7 +76,7 @@ func (w *Worker) attemptDelivery(ctx context.Context, client *http.Client, fd *m
 			resp.Body.Close()
 		}
 		fd.Attempts++
-		if fd.Attempts >= 5 {
+		if fd.Attempts >= db.MaxDeliveryAttempts {
 			w.markFailed(ctx, fd)
 		} else {
 			if dbErr := w.db.UpdateDeliveryStatus(ctx, fd.ID, models.DeliveryPending, fd.Attempts); dbErr != nil {

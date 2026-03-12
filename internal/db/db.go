@@ -11,9 +11,9 @@ import (
 	"github.com/m4rcel-lol/cliverse/internal/models"
 )
 
-// maxDeliveryAttempts is the maximum number of times a federation delivery
+// MaxDeliveryAttempts is the maximum number of times a federation delivery
 // will be retried before being marked as failed.
-const maxDeliveryAttempts = 5
+const MaxDeliveryAttempts = 5
 
 type DB struct {
 	pool *pgxpool.Pool
@@ -809,7 +809,7 @@ func (d *DB) GetPendingDeliveries(ctx context.Context, limit int) ([]*models.Fed
 		SELECT id, recipient_url, payload, attempts, last_attempt, status, created_at
 		FROM federation_deliveries
 		WHERE status='pending' AND attempts < $2
-		ORDER BY created_at ASC LIMIT $1`, limit, maxDeliveryAttempts)
+		ORDER BY created_at ASC LIMIT $1`, limit, MaxDeliveryAttempts)
 	if err != nil {
 		return nil, err
 	}
