@@ -6,7 +6,7 @@ CLIverse is a fully federated **Fediverse instance with a CLI-based interface**.
 
 - **ActivityPub federation** — compatible with Mastodon, Pleroma, and the wider Fediverse
 - **SSH access** — log in with a password or SSH public key (no browser required)
-- **SSH key import** — import keys from a URL (e.g. `ssh.mreow.org/m`)
+- **SSH key import** — import keys from a URL (e.g. `ssh.example.com/example`)
 - **Post & interact** — create posts, reply to threads, like, boost, and bookmark
 - **Timelines** — home, local, global (federated), and mentions
 - **Social graph** — follow/unfollow local and remote users, manage follow requests
