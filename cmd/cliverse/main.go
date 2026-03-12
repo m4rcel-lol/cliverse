@@ -104,6 +104,11 @@ func main() {
 
 	shutCtx, shutCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer shutCancel()
-	httpServer.Shutdown(shutCtx)
-	sshServer.Stop(shutCtx)
+
+	if err := httpServer.Shutdown(shutCtx); err != nil {
+		logger.Error("http server shutdown", zap.Error(err))
+	}
+	if err := sshServer.Stop(shutCtx); err != nil {
+		logger.Error("ssh server shutdown", zap.Error(err))
+	}
 }
