@@ -19,6 +19,8 @@ CLIverse is a fully federated **Fediverse instance with a CLI-based interface**.
 - **Rate limiting** — SSH login rate limiting backed by Redis
 - **MOTD** — configurable message of the day shown on login
 - **Config validation** — startup checks for required settings
+- **Post sanitization** — HTML tags stripped from user-created posts
+- **Build versioning** — embedded version via `-ldflags` at build time
 
 ## Quick Start (Docker Compose)
 
@@ -32,6 +34,24 @@ docker compose up -d
 
 # 3. Connect via SSH
 ssh -p 6969 <username>@<your-domain>
+```
+
+## Development
+
+A **Makefile** is provided for common tasks:
+
+```bash
+make build          # Compile the main server binary
+make build-worker   # Compile the federation worker binary
+make all            # Build both binaries
+make test           # Run all tests with race detection
+make vet            # Run go vet
+make lint           # vet + test
+make fmt            # Format all Go source files
+make clean          # Remove build artifacts
+make docker         # Build Docker images with Compose
+make docker-up      # Start all services
+make docker-down    # Stop all services
 ```
 
 ## Requirements
@@ -75,6 +95,12 @@ search users "alice"                   # Search for users
 notif list                             # View notifications
 settings add_key "ssh-ed25519 …"       # Add an SSH key directly
 settings add_key_url ssh.mreow.org/m   # Import SSH keys from a URL
+info                                   # Show instance info
+uptime                                 # Show server uptime
+version                                # Show build version
+whoami                                 # Show your handle and role
+ping                                   # Connectivity check
+clear                                  # Clear the terminal
 admin create_user alice                # Create a user account
 admin create_user alice ssh.mreow.org  # Create user + import SSH keys
 admin add_key_url alice ssh.mreow.org  # Import SSH keys for a user

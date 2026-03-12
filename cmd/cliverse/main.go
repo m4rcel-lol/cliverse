@@ -23,14 +23,21 @@ import (
 	"go.uber.org/zap"
 )
 
+// version is set at build time via -ldflags.
+var version = "dev"
+
 func main() {
 	logger, _ := zap.NewProduction()
 	defer logger.Sync()
+
+	logger.Info("starting CLIverse", zap.String("version", version))
 
 	cfg, err := config.Load()
 	if err != nil {
 		logger.Fatal("load config", zap.Error(err))
 	}
+
+	startTime := time.Now()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	database, err := db.New(ctx, cfg.DatabaseDSN)
@@ -53,7 +60,7 @@ func main() {
 	inboxProcessor := activitypub.NewInboxProcessor(database, cfg, logger, deliverer)
 	worker := federation.NewWorker(database, cfg, logger, inboxProcessor)
 
-	dispatch := commands.NewDispatcher(cfg, database, logger)
+	dispatch := commands.NewDispatcher(cfg, database, logger, version, startTime)
 	shell := internalssh.NewShell(cfg, database, logger, dispatch)
 	sshServer := internalssh.New(cfg, database, shell, logger, rateLimiter)
 

@@ -198,14 +198,15 @@ func (s *Shell) Handle(sess gossh.Session, user *models.User, sessionID uuid.UUI
 		args := parts[1:]
 
 		cmdCtx := &commands.Context{
-			Ctx:       ctx,
-			User:      user,
-			Args:      args,
-			W:         newSessionWriter(sess),
-			DB:        s.db,
-			Config:    s.config,
-			Logger:    s.logger,
-			SessionID: sessionID.String(),
+			Ctx:        ctx,
+			User:       user,
+			Args:       args,
+			W:          newSessionWriter(sess),
+			DB:         s.db,
+			Config:     s.config,
+			Logger:     s.logger,
+			SessionID:  sessionID.String(),
+			Dispatcher: s.dispatch,
 		}
 
 		if err := s.dispatch.Dispatch(cmdCtx, cmd, args); err != nil {

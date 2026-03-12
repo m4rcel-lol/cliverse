@@ -38,7 +38,7 @@ func postCreate(ctx *Context, visibility string, localOnly bool) error {
 		return fmt.Errorf("usage: post %s \"message\"", ctx.Args[0])
 	}
 
-	content := ctx.Args[1]
+	content := stripHTMLTags(ctx.Args[1])
 	if len(content) == 0 {
 		return fmt.Errorf("post content cannot be empty")
 	}
@@ -83,7 +83,7 @@ func postReply(ctx *Context) error {
 	}
 
 	parentLocalID := ctx.Args[1]
-	content := ctx.Args[2]
+	content := stripHTMLTags(ctx.Args[2])
 
 	parent, err := ctx.DB.GetPostByLocalID(ctx.Ctx, parentLocalID)
 	if err != nil {

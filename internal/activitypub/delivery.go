@@ -25,6 +25,11 @@ func NewDeliverer(database *db.DB, logger *zap.Logger) *Deliverer {
 	return &Deliverer{db: database, logger: logger}
 }
 
+// deliveryClient is a shared HTTP client used for outbound ActivityPub
+// deliveries. It has a longer timeout than fetchClient because delivery targets
+// may be slow to respond.
+var deliveryClient = &http.Client{Timeout: 30 * time.Second}
+
 // Deliver sends an activity to a single remote inbox URL, signing the request
 // with the actor's private key. On transient failure the delivery is queued for
 // retry via the DB.
@@ -33,8 +38,6 @@ func (d *Deliverer) Deliver(ctx context.Context, activity interface{}, actorUser
 	if err != nil {
 		return fmt.Errorf("delivery: marshal activity: %w", err)
 	}
-
-	client := &http.Client{Timeout: 30 * time.Second}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, inboxURL, bytes.NewReader(body))
 	if err != nil {
@@ -52,7 +55,7 @@ func (d *Deliverer) Deliver(ctx context.Context, activity interface{}, actorUser
 		return fmt.Errorf("delivery: sign request: %w", err)
 	}
 
-	resp, err := client.Do(req)
+	resp, err := deliveryClient.Do(req)
 	if err != nil {
 		d.logger.Warn("delivery failed, queuing retry",
 			zap.String("inbox", inboxURL),

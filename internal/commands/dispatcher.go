@@ -6,6 +6,7 @@ import (
 	"io"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/m4rcel-lol/cliverse/internal/config"
 	"github.com/m4rcel-lol/cliverse/internal/db"
@@ -15,14 +16,15 @@ import (
 
 // Context holds all info for a command execution.
 type Context struct {
-	Ctx       context.Context
-	User      *models.User
-	Args      []string
-	W         io.Writer
-	DB        *db.DB
-	Config    *config.Config
-	Logger    *zap.Logger
-	SessionID string
+	Ctx        context.Context
+	User       *models.User
+	Args       []string
+	W          io.Writer
+	DB         *db.DB
+	Config     *config.Config
+	Logger     *zap.Logger
+	SessionID  string
+	Dispatcher *Dispatcher
 }
 
 // HandlerFunc is the signature for command handlers.
@@ -30,23 +32,33 @@ type HandlerFunc func(ctx *Context) error
 
 // Dispatcher routes commands to handlers.
 type Dispatcher struct {
-	handlers map[string]HandlerFunc
-	cfg      *config.Config
-	db       *db.DB
-	logger   *zap.Logger
+	handlers  map[string]HandlerFunc
+	cfg       *config.Config
+	db        *db.DB
+	logger    *zap.Logger
+	version   string
+	startTime time.Time
 }
 
 // NewDispatcher creates a Dispatcher and registers all built-in command handlers.
-func NewDispatcher(cfg *config.Config, database *db.DB, logger *zap.Logger) *Dispatcher {
+func NewDispatcher(cfg *config.Config, database *db.DB, logger *zap.Logger, version string, startTime time.Time) *Dispatcher {
 	d := &Dispatcher{
-		handlers: make(map[string]HandlerFunc),
-		cfg:      cfg,
-		db:       database,
-		logger:   logger,
+		handlers:  make(map[string]HandlerFunc),
+		cfg:       cfg,
+		db:        database,
+		logger:    logger,
+		version:   version,
+		startTime: startTime,
 	}
 	registerAll(d)
 	return d
 }
+
+// Version returns the build version string.
+func (d *Dispatcher) Version() string { return d.version }
+
+// StartTime returns the server start time.
+func (d *Dispatcher) StartTime() time.Time { return d.startTime }
 
 // Register adds a named handler to the dispatcher.
 func (d *Dispatcher) Register(name string, handler HandlerFunc) {

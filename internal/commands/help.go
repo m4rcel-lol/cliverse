@@ -60,6 +60,12 @@ func helpAll(ctx *Context) error {
 
 	fmt.Fprintf(ctx.W, "\033[1m\033[33m💻 Shell\033[0m\n")
 	fmt.Fprintf(ctx.W, "  \033[36mhelp\033[0m          Show this help\n")
+	fmt.Fprintf(ctx.W, "  \033[36minfo\033[0m          Show instance information\n")
+	fmt.Fprintf(ctx.W, "  \033[36muptime\033[0m        Show server uptime\n")
+	fmt.Fprintf(ctx.W, "  \033[36mversion\033[0m       Show software version\n")
+	fmt.Fprintf(ctx.W, "  \033[36mwhoami\033[0m        Show your handle and role\n")
+	fmt.Fprintf(ctx.W, "  \033[36mping\033[0m          Connectivity check\n")
+	fmt.Fprintf(ctx.W, "  \033[36mclear\033[0m         Clear the screen\n")
 	fmt.Fprintf(ctx.W, "  \033[36mexit\033[0m / \033[36mquit\033[0m  Disconnect\n\n")
 
 	return nil
@@ -203,6 +209,30 @@ func helpCommand(ctx *Context, cmd string) error {
   admin broadcast "message"                 Send notification to all users
   admin maintenance on/off                  Toggle maintenance mode
   admin logs                                Show last 50 audit log entries`,
+
+		"info": `\033[1minfo\033[0m - Instance information
+
+  Shows instance name, domain, version, user and post counts, and uptime.`,
+
+		"uptime": `\033[1muptime\033[0m - Server uptime
+
+  Shows how long the server has been running and when it started.`,
+
+		"version": `\033[1mversion\033[0m - Software version
+
+  Displays the CLIverse build version string.`,
+
+		"clear": `\033[1mclear\033[0m - Clear screen
+
+  Clears the terminal screen.`,
+
+		"ping": `\033[1mping\033[0m - Connectivity check
+
+  Quick test that the server is responding.`,
+
+		"whoami": `\033[1mwhoami\033[0m - Current user
+
+  Shows your @handle and role (user or admin).`,
 	}
 
 	text, ok := helps[cmd]

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"time"
@@ -12,6 +13,10 @@ import (
 // fetchClient is a shared HTTP client with a reasonable timeout used for
 // outbound ActivityPub requests (actor/note fetches, WebFinger lookups).
 var fetchClient = &http.Client{Timeout: 15 * time.Second}
+
+// maxFetchResponseBytes limits the size of remote responses to prevent denial
+// of service via excessively large payloads. Currently 2 MiB.
+const maxFetchResponseBytes = 2 << 20
 
 // FetchActor fetches and parses a remote ActivityPub actor.
 func FetchActor(ctx context.Context, actorURL string) (*Actor, error) {
@@ -32,7 +37,7 @@ func FetchActor(ctx context.Context, actorURL string) (*Actor, error) {
 	}
 
 	var actor Actor
-	if err := json.NewDecoder(resp.Body).Decode(&actor); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, maxFetchResponseBytes)).Decode(&actor); err != nil {
 		return nil, fmt.Errorf("activitypub/fetch: decode actor: %w", err)
 	}
 	return &actor, nil
@@ -57,7 +62,7 @@ func FetchNote(ctx context.Context, noteURL string) (*Note, error) {
 	}
 
 	var note Note
-	if err := json.NewDecoder(resp.Body).Decode(&note); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, maxFetchResponseBytes)).Decode(&note); err != nil {
 		return nil, fmt.Errorf("activitypub/fetch: decode note: %w", err)
 	}
 	return &note, nil
@@ -86,7 +91,7 @@ func WebFinger(ctx context.Context, username, domain string) (*Actor, error) {
 	}
 
 	var wf WebFingerResponse
-	if err := json.NewDecoder(resp.Body).Decode(&wf); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, maxFetchResponseBytes)).Decode(&wf); err != nil {
 		return nil, fmt.Errorf("activitypub/webfinger: decode response: %w", err)
 	}
 
