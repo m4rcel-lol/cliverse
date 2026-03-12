@@ -1060,3 +1060,115 @@ func (d *DB) MarkInboxEventProcessed(ctx context.Context, id uuid.UUID, errMsg s
 		UPDATE inbox_events SET processed=TRUE, error=$2 WHERE id=$1`, id, errMsg)
 	return err
 }
+
+// ==================== BLOCKS ====================
+
+func (d *DB) CreateBlock(ctx context.Context, b *models.Block) error {
+	_, err := d.pool.Exec(ctx, `
+		INSERT INTO blocks (id, blocker_id, blocked_id, created_at)
+		VALUES ($1,$2,$3,$4)`,
+		b.ID, b.BlockerID, b.BlockedID, b.CreatedAt,
+	)
+	return err
+}
+
+func (d *DB) GetBlock(ctx context.Context, blockerID, blockedID uuid.UUID) (*models.Block, error) {
+	b := &models.Block{}
+	err := d.pool.QueryRow(ctx, `
+		SELECT id, blocker_id, blocked_id, created_at
+		FROM blocks WHERE blocker_id=$1 AND blocked_id=$2`,
+		blockerID, blockedID).Scan(&b.ID, &b.BlockerID, &b.BlockedID, &b.CreatedAt)
+	if err == pgx.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return b, nil
+}
+
+func (d *DB) DeleteBlock(ctx context.Context, blockerID, blockedID uuid.UUID) error {
+	_, err := d.pool.Exec(ctx, `DELETE FROM blocks WHERE blocker_id=$1 AND blocked_id=$2`,
+		blockerID, blockedID)
+	return err
+}
+
+func (d *DB) ListBlocks(ctx context.Context, blockerID uuid.UUID) ([]*models.User, error) {
+	rows, err := d.pool.Query(ctx, `
+		SELECT u.id, u.username, u.domain, u.display_name, u.bio, u.avatar_url, u.banner_url,
+			u.password_hash, u.private_key, u.public_key, u.ap_id, u.inbox_url, u.outbox_url,
+			u.is_admin, u.is_locked, u.is_silenced, u.force_pass_change, u.created_at, u.updated_at
+		FROM blocks bl JOIN users u ON u.id = bl.blocked_id
+		WHERE bl.blocker_id=$1 ORDER BY bl.created_at DESC`, blockerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanUsers(rows)
+}
+
+func (d *DB) IsBlocked(ctx context.Context, blockerID, blockedID uuid.UUID) (bool, error) {
+	b, err := d.GetBlock(ctx, blockerID, blockedID)
+	if err != nil {
+		return false, err
+	}
+	return b != nil, nil
+}
+
+// ==================== MUTES ====================
+
+func (d *DB) CreateMute(ctx context.Context, m *models.Mute) error {
+	_, err := d.pool.Exec(ctx, `
+		INSERT INTO mutes (id, muter_id, muted_id, created_at)
+		VALUES ($1,$2,$3,$4)`,
+		m.ID, m.MuterID, m.MutedID, m.CreatedAt,
+	)
+	return err
+}
+
+func (d *DB) GetMute(ctx context.Context, muterID, mutedID uuid.UUID) (*models.Mute, error) {
+	m := &models.Mute{}
+	err := d.pool.QueryRow(ctx, `
+		SELECT id, muter_id, muted_id, created_at
+		FROM mutes WHERE muter_id=$1 AND muted_id=$2`,
+		muterID, mutedID).Scan(&m.ID, &m.MuterID, &m.MutedID, &m.CreatedAt)
+	if err == pgx.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (d *DB) DeleteMute(ctx context.Context, muterID, mutedID uuid.UUID) error {
+	_, err := d.pool.Exec(ctx, `DELETE FROM mutes WHERE muter_id=$1 AND muted_id=$2`,
+		muterID, mutedID)
+	return err
+}
+
+func (d *DB) ListMutes(ctx context.Context, muterID uuid.UUID) ([]*models.User, error) {
+	rows, err := d.pool.Query(ctx, `
+		SELECT u.id, u.username, u.domain, u.display_name, u.bio, u.avatar_url, u.banner_url,
+			u.password_hash, u.private_key, u.public_key, u.ap_id, u.inbox_url, u.outbox_url,
+			u.is_admin, u.is_locked, u.is_silenced, u.force_pass_change, u.created_at, u.updated_at
+		FROM mutes mu JOIN users u ON u.id = mu.muted_id
+		WHERE mu.muter_id=$1 ORDER BY mu.created_at DESC`, muterID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanUsers(rows)
+}
+
+func (d *DB) CountLocalUsers(ctx context.Context, domain string) (int, error) {
+	var count int
+	err := d.pool.QueryRow(ctx, `SELECT COUNT(*) FROM users WHERE domain=$1`, domain).Scan(&count)
+	return count, err
+}
+
+func (d *DB) CountLocalPosts(ctx context.Context) (int, error) {
+	var count int
+	err := d.pool.QueryRow(ctx, `SELECT COUNT(*) FROM posts WHERE deleted=FALSE`).Scan(&count)
+	return count, err
+}

@@ -184,6 +184,20 @@ type SystemConfig struct {
 	UpdatedAt time.Time
 }
 
+type Block struct {
+	ID        uuid.UUID
+	BlockerID uuid.UUID
+	BlockedID uuid.UUID
+	CreatedAt time.Time
+}
+
+type Mute struct {
+	ID        uuid.UUID
+	MuterID   uuid.UUID
+	MutedID   uuid.UUID
+	CreatedAt time.Time
+}
+
 // Visibility constants
 const (
 	VisibilityPublic    = "public"

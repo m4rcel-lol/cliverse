@@ -1,2 +1,104 @@
-# cliverse
-CLIverse is a custom Fediverse instance, but as CLI. I really love ActivityPub ❤️
+# CLIverse
+
+CLIverse is a fully federated **Fediverse instance with a CLI-based interface**. Instead of a web browser, users connect via SSH and interact through a text-based terminal shell. It speaks ActivityPub, so it federates with Mastodon, Pleroma, and the rest of the Fediverse. I really love ActivityPub ❤️
+
+## Features
+
+- **ActivityPub federation** — compatible with Mastodon, Pleroma, and the wider Fediverse
+- **SSH access** — log in with a password or SSH public key (no browser required)
+- **Post & interact** — create posts, reply to threads, like, boost, and bookmark
+- **Timelines** — home, local, global (federated), and mentions
+- **Social graph** — follow/unfollow local and remote users, manage follow requests
+- **User safety** — block users, mute users, report abuse
+- **Notifications** — follows, mentions, likes, boosts, replies
+- **Drafts** — save posts for later and publish when ready
+- **Search** — find users and posts
+- **Moderation** — admin tools for suspending accounts, silencing users, domain policies
+- **NodeInfo** — standard `/.well-known/nodeinfo` for instance discoverability
+- **Rate limiting** — SSH login rate limiting backed by Redis
+
+## Quick Start (Docker Compose)
+
+```bash
+# 1. Copy and edit the environment file
+cp .env.example .env
+$EDITOR .env
+
+# 2. Start the full stack (app + worker + PostgreSQL + Redis + Caddy)
+docker compose up -d
+
+# 3. Connect via SSH
+ssh -p 6969 <username>@<your-domain>
+```
+
+## Requirements
+
+- Docker & Docker Compose
+- A domain name with DNS pointing to your server
+- Ports 22 (or 6969), 80, and 443 open
+
+## Configuration
+
+All configuration is via environment variables (see `.env.example`):
+
+| Variable             | Default                   | Description                        |
+|----------------------|---------------------------|------------------------------------|
+| `DOMAIN`             | `localhost`               | Public domain name of the instance |
+| `INSTANCE_NAME`      | `CLIverse`                | Display name shown to other servers|
+| `INSTANCE_DESC`      | `A CLIverse Fediverse instance` | Instance description          |
+| `SSH_PORT`           | `6969`                    | SSH listen port                    |
+| `HTTP_PORT`          | `8080`                    | Internal HTTP listen port          |
+| `DATABASE_DSN`       | (postgres://...)          | PostgreSQL connection string       |
+| `REDIS_URL`          | `redis://localhost:6379/0`| Redis connection URL               |
+| `SESSION_SECRET`     | (changeme)                | Secret for session tokens          |
+| `MAX_POST_LENGTH`    | `500`                     | Maximum characters per post        |
+| `SSH_IDLE_TIMEOUT`   | `30m`                     | SSH session idle timeout           |
+
+## Shell Commands
+
+Once connected via SSH, type `help` to see all commands. Key commands:
+
+```
+post global "Hello Fediverse!"     # Create a public post
+post reply <ID> "Nice!"            # Reply to a post
+timeline home                      # View home timeline
+timeline global                    # View federated timeline
+follow add @user@mastodon.social   # Follow a remote user
+block add @user                    # Block a user
+mute add @user                     # Mute a user
+report user @user "spam"           # Report a user
+search users "alice"               # Search for users
+notif list                         # View notifications
+settings add_key "ssh-ed25519 …"   # Add an SSH key
+help                               # Full command list
+```
+
+## Federation
+
+CLIverse implements:
+- **ActivityPub** inbox/outbox with HTTP Signatures (RSA-SHA256)
+- **WebFinger** (`/.well-known/webfinger`) for actor discovery
+- **NodeInfo** (`/.well-known/nodeinfo`) for instance metadata
+- Activities: `Follow`, `Accept`, `Reject`, `Create`, `Delete`, `Like`, `Announce`, `Undo`
+
+## Architecture
+
+```
+cmd/cliverse/    — HTTP + SSH server entry point
+cmd/worker/      — Background federation worker
+internal/
+  activitypub/   — ActivityPub protocol (inbox, outbox, signatures, nodeinfo)
+  auth/          — Argon2id password hashing, SSH key fingerprints, rate limiting
+  commands/      — CLI command handlers (post, timeline, follow, block, mute, …)
+  config/        — Environment-based configuration
+  db/            — PostgreSQL data layer
+  federation/    — Background delivery worker
+  models/        — Data model definitions
+  ssh/           — SSH server and interactive shell
+migrations/      — PostgreSQL schema
+deploy/caddy/    — Caddy reverse-proxy configuration
+```
+
+## License
+
+MIT

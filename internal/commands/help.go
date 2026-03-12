@@ -37,6 +37,9 @@ func helpAll(ctx *Context) error {
 	fmt.Fprintf(ctx.W, "\033[1m\033[33m👤 Social\033[0m\n")
 	fmt.Fprintf(ctx.W, "  \033[36mprofile\033[0m       View and edit your profile\n")
 	fmt.Fprintf(ctx.W, "  \033[36mfollow\033[0m        Follow, unfollow, manage follow requests\n")
+	fmt.Fprintf(ctx.W, "  \033[36mblock\033[0m         Block / unblock users\n")
+	fmt.Fprintf(ctx.W, "  \033[36mmute\033[0m          Mute / unmute users\n")
+	fmt.Fprintf(ctx.W, "  \033[36mreport\033[0m        Report a user or post\n")
 	fmt.Fprintf(ctx.W, "  \033[36muser\033[0m          Look up local or remote users\n\n")
 
 	fmt.Fprintf(ctx.W, "\033[1m\033[33m❤️  Interactions\033[0m\n")
@@ -105,6 +108,23 @@ func helpCommand(ctx *Context, cmd string) error {
   follow requests             Show pending follow requests
   follow accept ID            Accept a follow request
   follow reject ID            Reject a follow request`,
+
+		"block": `\033[1mblock\033[0m - Block users
+
+  block add @user      Block a local user
+  block remove @user   Unblock a user
+  block list           List all blocked users`,
+
+		"mute": `\033[1mmute\033[0m - Mute users
+
+  mute add @user      Mute a user (hides their posts from your timeline)
+  mute remove @user   Unmute a user
+  mute list           List all muted users`,
+
+		"report": `\033[1mreport\033[0m - Report content
+
+  report user @username "reason"   Report a user
+  report post POST_ID "reason"     Report a specific post`,
 
 		"fav": `\033[1mfav\033[0m - Like posts
 

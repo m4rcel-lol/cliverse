@@ -2,6 +2,7 @@
     reverse_proxy /users/* app:8080
     reverse_proxy /.well-known/webfinger app:8080
     reverse_proxy /.well-known/nodeinfo app:8080
+    reverse_proxy /nodeinfo/* app:8080
 
     encode gzip
 

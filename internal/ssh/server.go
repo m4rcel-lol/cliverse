@@ -29,23 +29,25 @@ const ctxKeyUser contextKey = "user"
 
 // Server is the CLIverse SSH server.
 type Server struct {
-config *config.Config
-db     *db.DB
-shell  *Shell
-logger *zap.Logger
-server *glssh.Server
+	config      *config.Config
+	db          *db.DB
+	shell       *Shell
+	logger      *zap.Logger
+	server      *glssh.Server
+	rateLimiter *auth.RateLimiter
 }
 
 // New creates a new SSH Server.
-func New(cfg *config.Config, database *db.DB, shell *Shell, logger *zap.Logger) *Server {
-s := &Server{
-config: cfg,
-db:     database,
-shell:  shell,
-logger: logger,
-}
-s.server = s.buildServer()
-return s
+func New(cfg *config.Config, database *db.DB, shell *Shell, logger *zap.Logger, rateLimiter *auth.RateLimiter) *Server {
+	s := &Server{
+		config:      cfg,
+		db:          database,
+		shell:       shell,
+		logger:      logger,
+		rateLimiter: rateLimiter,
+	}
+	s.server = s.buildServer()
+	return s
 }
 
 // Start begins listening for SSH connections.
@@ -87,73 +89,111 @@ return s.handlePasswordAuth(ctx, password)
 
 // handlePublicKeyAuth authenticates a connection via SSH public key.
 func (s *Server) handlePublicKeyAuth(ctx glssh.Context, key glssh.PublicKey) bool {
-remoteAddr := ctx.RemoteAddr().String()
-h := gossh.FingerprintSHA256(key)
+	remoteAddr := ctx.RemoteAddr().String()
+	ip := extractIP(remoteAddr)
+	h := gossh.FingerprintSHA256(key)
 
-sshKey, err := s.db.GetSSHKeyByFingerprint(context.Background(), h)
-if err != nil {
-s.logger.Warn("public key lookup error", zap.String("fingerprint", h), zap.Error(err))
-s.logAttempt(nil, remoteAddr, "pubkey_auth", false, "db error")
-return false
-}
-if sshKey == nil {
-s.logAttempt(nil, remoteAddr, "pubkey_auth", false, "key not found")
-return false
-}
+	// Check rate limit by IP for public key auth as well.
+	if s.rateLimiter != nil {
+		allowed, err := s.rateLimiter.CheckLoginAttempts(context.Background(), ip)
+		if err != nil {
+			s.logger.Warn("rate limiter check failed", zap.Error(err))
+		} else if !allowed {
+			s.logAttempt(nil, remoteAddr, "pubkey_auth", false, "rate limited")
+			s.logger.Warn("SSH pubkey auth rate limited", zap.String("ip", ip))
+			return false
+		}
+	}
 
-user, err := s.db.GetUserByID(context.Background(), sshKey.UserID)
-if err != nil || user == nil {
-s.logAttempt(nil, remoteAddr, "pubkey_auth", false, "user not found")
-return false
-}
+	sshKey, err := s.db.GetSSHKeyByFingerprint(context.Background(), h)
+	if err != nil {
+		s.logger.Warn("public key lookup error", zap.String("fingerprint", h), zap.Error(err))
+		s.logAttempt(nil, remoteAddr, "pubkey_auth", false, "db error")
+		return false
+	}
+	if sshKey == nil {
+		s.logAttempt(nil, remoteAddr, "pubkey_auth", false, "key not found")
+		if s.rateLimiter != nil {
+			_ = s.rateLimiter.RecordLoginAttempt(context.Background(), ip)
+		}
+		return false
+	}
 
-if user.IsLocked {
-s.logAttempt(&user.ID, remoteAddr, "pubkey_auth", false, "account suspended")
-return false
-}
+	user, err := s.db.GetUserByID(context.Background(), sshKey.UserID)
+	if err != nil || user == nil {
+		s.logAttempt(nil, remoteAddr, "pubkey_auth", false, "user not found")
+		return false
+	}
 
-ctx.SetValue(ctxKeyUser, user)
-s.logAttempt(&user.ID, remoteAddr, "pubkey_auth", true, "")
-s.logger.Info("SSH public key auth success",
-zap.String("username", user.Username),
-zap.String("remote", remoteAddr))
-return true
+	if user.IsLocked {
+		s.logAttempt(&user.ID, remoteAddr, "pubkey_auth", false, "account suspended")
+		return false
+	}
+
+	ctx.SetValue(ctxKeyUser, user)
+	s.logAttempt(&user.ID, remoteAddr, "pubkey_auth", true, "")
+	s.logger.Info("SSH public key auth success",
+		zap.String("username", user.Username),
+		zap.String("remote", remoteAddr))
+	return true
 }
 
 // handlePasswordAuth authenticates a connection via password.
 func (s *Server) handlePasswordAuth(ctx glssh.Context, password string) bool {
-username := ctx.User()
-remoteAddr := ctx.RemoteAddr().String()
+	username := ctx.User()
+	remoteAddr := ctx.RemoteAddr().String()
+	ip := extractIP(remoteAddr)
 
-user, err := s.db.GetUserByUsername(context.Background(), username)
-if err != nil {
-s.logger.Warn("password auth lookup error", zap.String("username", username), zap.Error(err))
-s.logAttempt(nil, remoteAddr, "password_auth", false, "db error")
-return false
-}
-if user == nil {
-s.logAttempt(nil, remoteAddr, "password_auth", false, "user not found")
-return false
-}
+	// Check rate limit by IP to slow brute-force attacks.
+	if s.rateLimiter != nil {
+		allowed, err := s.rateLimiter.CheckLoginAttempts(context.Background(), ip)
+		if err != nil {
+			s.logger.Warn("rate limiter check failed", zap.Error(err))
+		} else if !allowed {
+			s.logAttempt(nil, remoteAddr, "password_auth", false, "rate limited")
+			s.logger.Warn("SSH login rate limited", zap.String("ip", ip))
+			return false
+		}
+	}
 
-if user.IsLocked {
-s.logAttempt(&user.ID, remoteAddr, "password_auth", false, "account suspended")
-return false
-}
+	user, err := s.db.GetUserByUsername(context.Background(), username)
+	if err != nil {
+		s.logger.Warn("password auth lookup error", zap.String("username", username), zap.Error(err))
+		s.logAttempt(nil, remoteAddr, "password_auth", false, "db error")
+		if s.rateLimiter != nil {
+			_ = s.rateLimiter.RecordLoginAttempt(context.Background(), ip)
+		}
+		return false
+	}
+	if user == nil {
+		s.logAttempt(nil, remoteAddr, "password_auth", false, "user not found")
+		if s.rateLimiter != nil {
+			_ = s.rateLimiter.RecordLoginAttempt(context.Background(), ip)
+		}
+		return false
+	}
 
-ok, err := auth.VerifyPassword(password, user.PasswordHash)
-if err != nil || !ok {
-s.logAttempt(&user.ID, remoteAddr, "password_auth", false, "wrong password")
-s.logger.Info("SSH password auth failed", zap.String("username", username))
-return false
-}
+	if user.IsLocked {
+		s.logAttempt(&user.ID, remoteAddr, "password_auth", false, "account suspended")
+		return false
+	}
 
-ctx.SetValue(ctxKeyUser, user)
-s.logAttempt(&user.ID, remoteAddr, "password_auth", true, "")
-s.logger.Info("SSH password auth success",
-zap.String("username", username),
-zap.String("remote", remoteAddr))
-return true
+	ok, err := auth.VerifyPassword(password, user.PasswordHash)
+	if err != nil || !ok {
+		s.logAttempt(&user.ID, remoteAddr, "password_auth", false, "wrong password")
+		s.logger.Info("SSH password auth failed", zap.String("username", username))
+		if s.rateLimiter != nil {
+			_ = s.rateLimiter.RecordLoginAttempt(context.Background(), ip)
+		}
+		return false
+	}
+
+	ctx.SetValue(ctxKeyUser, user)
+	s.logAttempt(&user.ID, remoteAddr, "password_auth", true, "")
+	s.logger.Info("SSH password auth success",
+		zap.String("username", username),
+		zap.String("remote", remoteAddr))
+	return true
 }
 
 // handleSession runs the user's shell after successful authentication.

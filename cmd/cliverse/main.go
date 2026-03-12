@@ -48,7 +48,6 @@ func main() {
 	defer redisClient.Close()
 
 	rateLimiter := auth.NewRateLimiter(redisClient)
-	_ = rateLimiter
 
 	deliverer := activitypub.NewDeliverer(database, logger)
 	inboxProcessor := activitypub.NewInboxProcessor(database, cfg, logger, deliverer)
@@ -56,7 +55,7 @@ func main() {
 
 	dispatch := commands.NewDispatcher(cfg, database, logger)
 	shell := internalssh.NewShell(cfg, database, logger, dispatch)
-	sshServer := internalssh.New(cfg, database, shell, logger)
+	sshServer := internalssh.New(cfg, database, shell, logger, rateLimiter)
 
 	r := chi.NewRouter()
 	r.Use(chimiddleware.RealIP)
@@ -64,6 +63,8 @@ func main() {
 	r.Use(httprate.LimitByIP(100, time.Minute))
 
 	r.Get("/.well-known/webfinger", activitypub.WebFingerHandler(cfg, database))
+	r.Get("/.well-known/nodeinfo", activitypub.NodeInfoWellKnownHandler(cfg))
+	r.Get("/nodeinfo/2.0", activitypub.NodeInfoHandler(cfg, database))
 	r.Get("/users/{username}", activitypub.ActorHandler(cfg, database))
 	r.Post("/users/{username}/inbox", activitypub.InboxHandler(cfg, database, logger))
 	r.Get("/users/{username}/outbox", activitypub.OutboxHandler(cfg, database))
