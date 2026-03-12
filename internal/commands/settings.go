@@ -146,17 +146,10 @@ func settingsAddKey(ctx *Context) error {
 		return fmt.Errorf("SSH key already registered (fingerprint: %s)", fp)
 	}
 
-	// Use the key type + first 8 chars of fingerprint as name
-	parts := strings.Fields(keyStr)
-	name := parts[0]
-	if len(fp) > 8 {
-		name += " " + fp[len(fp)-8:]
-	}
-
 	key := &models.SSHKey{
 		ID:          uuid.New(),
 		UserID:      ctx.User.ID,
-		Name:        name,
+		Name:        sshKeyName(keyStr, fp),
 		PublicKey:   keyStr,
 		Fingerprint: fp,
 		CreatedAt:   time.Now(),
@@ -198,19 +191,10 @@ func settingsAddKeyURL(ctx *Context) error {
 			continue
 		}
 
-		parts := strings.Fields(keyStr)
-		name := fp
-		if len(parts) > 0 {
-			name = parts[0]
-			if len(fp) > 8 {
-				name += " " + fp[len(fp)-8:]
-			}
-		}
-
 		key := &models.SSHKey{
 			ID:          uuid.New(),
 			UserID:      ctx.User.ID,
-			Name:        name,
+			Name:        sshKeyName(keyStr, fp),
 			PublicKey:   keyStr,
 			Fingerprint: fp,
 			CreatedAt:   time.Now(),

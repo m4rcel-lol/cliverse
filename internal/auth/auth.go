@@ -172,6 +172,9 @@ func GenerateRSAKeyPair() (privateKeyPEM string, publicKeyPEM string, err error)
 // maxSSHKeyResponseBytes limits the response body when fetching SSH keys from a URL.
 const maxSSHKeyResponseBytes = 64 * 1024
 
+// sshKeyFetchClient is a shared HTTP client used for SSH key URL fetches.
+var sshKeyFetchClient = &http.Client{Timeout: 10 * time.Second}
+
 // FetchSSHKeysFromURL fetches SSH public keys from the given URL.
 // It returns a slice of valid authorized_keys lines parsed from the response.
 // The URL may omit the scheme; https:// is prepended automatically when needed.
@@ -184,8 +187,7 @@ func FetchSSHKeysFromURL(rawURL string) ([]string, error) {
 		u = "https://" + u
 	}
 
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Get(u)
+	resp, err := sshKeyFetchClient.Get(u)
 	if err != nil {
 		return nil, fmt.Errorf("fetch SSH keys: %w", err)
 	}

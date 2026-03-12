@@ -32,3 +32,41 @@ func TestValidUsername(t *testing.T) {
 		})
 	}
 }
+
+func TestSSHKeyName(t *testing.T) {
+	tests := []struct {
+		name        string
+		keyStr      string
+		fingerprint string
+		want        string
+	}{
+		{
+			name:        "ed25519 key",
+			keyStr:      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5 test@example",
+			fingerprint: "SHA256:abcdef123456",
+			want:        "ssh-ed25519 ef123456",
+		},
+		{
+			name:        "short fingerprint",
+			keyStr:      "ssh-rsa AAAA",
+			fingerprint: "short",
+			want:        "ssh-rsa",
+		},
+		{
+			name:        "empty key string",
+			keyStr:      "",
+			fingerprint: "SHA256:abcdef123456",
+			want:        "SHA256:abcdef123456",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := sshKeyName(tt.keyStr, tt.fingerprint)
+			if got != tt.want {
+				t.Errorf("sshKeyName(%q, %q) = %q, want %q",
+					tt.keyStr, tt.fingerprint, got, tt.want)
+			}
+		})
+	}
+}

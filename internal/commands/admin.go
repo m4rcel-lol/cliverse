@@ -248,19 +248,10 @@ func adminAddKey(ctx *Context) error {
 		return fmt.Errorf("SSH key already registered (fingerprint: %s)", fp)
 	}
 
-	parts := strings.Fields(keyStr)
-	name := fp
-	if len(parts) > 0 {
-		name = parts[0]
-		if len(fp) > 8 {
-			name += " " + fp[len(fp)-8:]
-		}
-	}
-
 	key := &models.SSHKey{
 		ID:          uuid.New(),
 		UserID:      user.ID,
-		Name:        name,
+		Name:        sshKeyName(keyStr, fp),
 		PublicKey:   keyStr,
 		Fingerprint: fp,
 		CreatedAt:   time.Now(),
@@ -333,19 +324,10 @@ func importSSHKeysFromURL(ctx *Context, user *models.User, rawURL string) (int, 
 			continue
 		}
 
-		parts := strings.Fields(keyStr)
-		name := fp
-		if len(parts) > 0 {
-			name = parts[0]
-			if len(fp) > 8 {
-				name += " " + fp[len(fp)-8:]
-			}
-		}
-
 		key := &models.SSHKey{
 			ID:          uuid.New(),
 			UserID:      user.ID,
-			Name:        name,
+			Name:        sshKeyName(keyStr, fp),
 			PublicKey:   keyStr,
 			Fingerprint: fp,
 			CreatedAt:   time.Now(),

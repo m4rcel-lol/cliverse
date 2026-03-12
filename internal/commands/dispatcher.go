@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"sort"
+	"strings"
 
 	"github.com/m4rcel-lol/cliverse/internal/config"
 	"github.com/m4rcel-lol/cliverse/internal/db"
@@ -70,4 +71,18 @@ func (d *Dispatcher) Commands() []string {
 	}
 	sort.Strings(names)
 	return names
+}
+
+// sshKeyName generates a short display name for an SSH key from its raw string
+// and fingerprint. Format: "key-type last-8-chars-of-fingerprint".
+func sshKeyName(keyStr, fingerprint string) string {
+	parts := strings.Fields(keyStr)
+	name := fingerprint
+	if len(parts) > 0 {
+		name = parts[0]
+		if len(fingerprint) > 8 {
+			name += " " + fingerprint[len(fingerprint)-8:]
+		}
+	}
+	return name
 }
