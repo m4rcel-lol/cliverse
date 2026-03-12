@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"fmt"
 	"math/big"
+	"regexp"
 	"strings"
 	"time"
 
@@ -11,6 +12,9 @@ import (
 	"github.com/m4rcel-lol/cliverse/internal/auth"
 	"github.com/m4rcel-lol/cliverse/internal/models"
 )
+
+// validUsername matches alphanumeric characters and underscores only.
+var validUsername = regexp.MustCompile(`^[a-z0-9_]+$`)
 
 const randomPasswordChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*"
 
@@ -21,7 +25,7 @@ func HandleAdmin(ctx *Context) error {
 	}
 
 	if len(ctx.Args) == 0 {
-		return fmt.Errorf("usage: admin <create_user|delete_user|reset_password|add_key|list_users|health|stats|broadcast|maintenance|logs>")
+		return fmt.Errorf("usage: admin <create_user|delete_user|reset_password|add_key|add_key_url|list_users|health|stats|broadcast|maintenance|logs>")
 	}
 
 	switch ctx.Args[0] {
@@ -33,6 +37,8 @@ func HandleAdmin(ctx *Context) error {
 		return adminResetPassword(ctx)
 	case "add_key":
 		return adminAddKey(ctx)
+	case "add_key_url":
+		return adminAddKeyURL(ctx)
 	case "list_users":
 		return adminListUsers(ctx)
 	case "health":
@@ -52,12 +58,15 @@ func HandleAdmin(ctx *Context) error {
 
 func adminCreateUser(ctx *Context) error {
 	if len(ctx.Args) < 2 {
-		return fmt.Errorf("usage: admin create_user USERNAME")
+		return fmt.Errorf("usage: admin create_user USERNAME [SSH_KEY_URL]")
 	}
 
 	username := strings.ToLower(ctx.Args[1])
 	if len(username) < 2 || len(username) > 30 {
 		return fmt.Errorf("username must be 2-30 characters")
+	}
+	if !validUsername.MatchString(username) {
+		return fmt.Errorf("username may only contain lowercase letters, numbers, and underscores")
 	}
 
 	existing, err := ctx.DB.GetUserByUsername(ctx.Ctx, username)
@@ -116,6 +125,18 @@ func adminCreateUser(ctx *Context) error {
 	fmt.Fprintf(ctx.W, "\033[32m✓ User @%s created\033[0m\n", username)
 	fmt.Fprintf(ctx.W, "  Temporary password: \033[33m%s\033[0m\n", password)
 	fmt.Fprintf(ctx.W, "  \033[33m(User must change password on first login)\033[0m\n")
+
+	// If an SSH key URL was provided, fetch and import keys.
+	if len(ctx.Args) >= 3 {
+		keyURL := ctx.Args[2]
+		imported, err := importSSHKeysFromURL(ctx, user, keyURL)
+		if err != nil {
+			fmt.Fprintf(ctx.W, "  \033[33m⚠ Could not import SSH keys from URL: %s\033[0m\n", err)
+		} else {
+			fmt.Fprintf(ctx.W, "  \033[32m✓ Imported %d SSH key(s) from %s\033[0m\n", imported, keyURL)
+		}
+	}
+
 	return nil
 }
 
@@ -218,6 +239,15 @@ func adminAddKey(ctx *Context) error {
 		return fmt.Errorf("invalid key: %w", err)
 	}
 
+	// Check for duplicate key.
+	existing, err := ctx.DB.GetSSHKeyByFingerprint(ctx.Ctx, fp)
+	if err != nil {
+		return fmt.Errorf("check key: %w", err)
+	}
+	if existing != nil {
+		return fmt.Errorf("SSH key already registered (fingerprint: %s)", fp)
+	}
+
 	parts := strings.Fields(keyStr)
 	name := parts[0]
 	if len(fp) > 8 {
@@ -239,6 +269,92 @@ func adminAddKey(ctx *Context) error {
 	fmt.Fprintf(ctx.W, "\033[32m✓ SSH key added for @%s\033[0m\n", username)
 	fmt.Fprintf(ctx.W, "  Fingerprint: %s\n", fp)
 	return nil
+}
+
+func adminAddKeyURL(ctx *Context) error {
+	if len(ctx.Args) < 3 {
+		return fmt.Errorf("usage: admin add_key_url USERNAME URL\n  Example: admin add_key_url alice ssh.mreow.org/m")
+	}
+
+	username := ctx.Args[1]
+	keyURL := ctx.Args[2]
+
+	user, err := ctx.DB.GetUserByUsername(ctx.Ctx, username)
+	if err != nil {
+		return fmt.Errorf("lookup user: %w", err)
+	}
+	if user == nil {
+		return fmt.Errorf("user not found: %s", username)
+	}
+
+	imported, err := importSSHKeysFromURL(ctx, user, keyURL)
+	if err != nil {
+		return fmt.Errorf("import SSH keys: %w", err)
+	}
+
+	_ = ctx.DB.CreateAuditLog(ctx.Ctx, &models.AuditLog{
+		ID:        uuid.New(),
+		ActorID:   &ctx.User.ID,
+		Action:    "admin.add_key_url",
+		Target:    username,
+		Details:   fmt.Sprintf(`{"url":%q,"imported":%d}`, keyURL, imported),
+		CreatedAt: time.Now(),
+	})
+
+	fmt.Fprintf(ctx.W, "\033[32m✓ Imported %d SSH key(s) for @%s from %s\033[0m\n", imported, username, keyURL)
+	return nil
+}
+
+// importSSHKeysFromURL fetches SSH public keys from the given URL and adds
+// them to the user's account, skipping any keys that are already registered.
+func importSSHKeysFromURL(ctx *Context, user *models.User, rawURL string) (int, error) {
+	keys, err := auth.FetchSSHKeysFromURL(rawURL)
+	if err != nil {
+		return 0, err
+	}
+
+	imported := 0
+	for _, keyStr := range keys {
+		fp, err := auth.CalcFingerprint(keyStr)
+		if err != nil {
+			continue
+		}
+
+		// Skip duplicates.
+		existing, err := ctx.DB.GetSSHKeyByFingerprint(ctx.Ctx, fp)
+		if err != nil {
+			continue
+		}
+		if existing != nil {
+			fmt.Fprintf(ctx.W, "  \033[33mSkipped duplicate key: %s\033[0m\n", fp)
+			continue
+		}
+
+		parts := strings.Fields(keyStr)
+		name := parts[0]
+		if len(fp) > 8 {
+			name += " " + fp[len(fp)-8:]
+		}
+
+		key := &models.SSHKey{
+			ID:          uuid.New(),
+			UserID:      user.ID,
+			Name:        name,
+			PublicKey:   keyStr,
+			Fingerprint: fp,
+			CreatedAt:   time.Now(),
+		}
+		if err := ctx.DB.CreateSSHKey(ctx.Ctx, key); err != nil {
+			continue
+		}
+		fmt.Fprintf(ctx.W, "  Key added: %s\n", fp)
+		imported++
+	}
+
+	if imported == 0 {
+		return 0, fmt.Errorf("no new keys imported (all duplicates or invalid)")
+	}
+	return imported, nil
 }
 
 func adminListUsers(ctx *Context) error {

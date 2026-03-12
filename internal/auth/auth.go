@@ -11,6 +11,8 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
 	"strings"
 	"time"
 
@@ -165,4 +167,60 @@ func GenerateRSAKeyPair() (privateKeyPEM string, publicKeyPEM string, err error)
 	publicKeyPEM = string(pem.EncodeToMemory(pubBlock))
 
 	return privateKeyPEM, publicKeyPEM, nil
+}
+
+// maxSSHKeyResponseBytes limits the response body when fetching SSH keys from a URL.
+const maxSSHKeyResponseBytes = 64 * 1024
+
+// FetchSSHKeysFromURL fetches SSH public keys from the given URL.
+// It returns a slice of valid authorized_keys lines parsed from the response.
+// The URL may omit the scheme; https:// is prepended automatically when needed.
+func FetchSSHKeysFromURL(rawURL string) ([]string, error) {
+	u := strings.TrimSpace(rawURL)
+	if u == "" {
+		return nil, errors.New("empty URL")
+	}
+	if !strings.HasPrefix(u, "http://") && !strings.HasPrefix(u, "https://") {
+		u = "https://" + u
+	}
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Get(u)
+	if err != nil {
+		return nil, fmt.Errorf("fetch SSH keys: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("fetch SSH keys: HTTP %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxSSHKeyResponseBytes))
+	if err != nil {
+		return nil, fmt.Errorf("read SSH keys response: %w", err)
+	}
+
+	return ParseSSHKeys(string(body))
+}
+
+// ParseSSHKeys extracts valid SSH public key lines from raw text.
+// Lines that do not parse as authorized_keys entries are silently skipped.
+func ParseSSHKeys(text string) ([]string, error) {
+	var keys []string
+	for _, line := range strings.Split(text, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		// Validate the line as an authorized_keys entry.
+		_, _, _, _, err := gossh.ParseAuthorizedKey([]byte(line))
+		if err != nil {
+			continue
+		}
+		keys = append(keys, line)
+	}
+	if len(keys) == 0 {
+		return nil, errors.New("no valid SSH public keys found at URL")
+	}
+	return keys, nil
 }

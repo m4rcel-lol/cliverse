@@ -165,12 +165,13 @@ func helpCommand(ctx *Context, cmd string) error {
 
 		"settings": `\033[1msettings\033[0m - Account settings
 
-  settings update_password         Change your password
-  settings add_key "ssh-ed25519 …" Add an SSH public key
-  settings remove_key FINGERPRINT  Remove an SSH key
-  settings list_keys               List your SSH keys
-  settings sessions                List your active sessions
-  settings export                  Export your account data as JSON`,
+  settings update_password             Change your password
+  settings add_key "ssh-ed25519 …"     Add an SSH public key
+  settings add_key_url URL             Import SSH keys from a URL (e.g. ssh.mreow.org/m)
+  settings remove_key FINGERPRINT      Remove an SSH key
+  settings list_keys                   List your SSH keys
+  settings sessions                    List your active sessions
+  settings export                      Export your account data as JSON`,
 
 		"fed": `\033[1mfed\033[0m - Federation policies (admin only)
 
@@ -191,16 +192,17 @@ func helpCommand(ctx *Context, cmd string) error {
 
 		"admin": `\033[1madmin\033[0m - Administration (admin only)
 
-  admin create_user USERNAME      Create a new user account
-  admin delete_user USERNAME      Permanently delete a user
-  admin reset_password USERNAME   Generate a new temporary password
-  admin add_key USERNAME "key"    Add SSH key for a user
-  admin list_users                List all users with status
-  admin health                    Check DB/Redis health
-  admin stats                     Show instance statistics
-  admin broadcast "message"       Send notification to all users
-  admin maintenance on/off        Toggle maintenance mode
-  admin logs                      Show last 50 audit log entries`,
+  admin create_user USERNAME [SSH_KEY_URL]  Create a new user account (optionally import SSH keys from URL)
+  admin delete_user USERNAME                Permanently delete a user
+  admin reset_password USERNAME             Generate a new temporary password
+  admin add_key USERNAME "key"              Add SSH key for a user
+  admin add_key_url USERNAME URL            Import SSH keys for a user from a URL (e.g. ssh.mreow.org/m)
+  admin list_users                          List all users with status
+  admin health                              Check DB/Redis health
+  admin stats                               Show instance statistics
+  admin broadcast "message"                 Send notification to all users
+  admin maintenance on/off                  Toggle maintenance mode
+  admin logs                                Show last 50 audit log entries`,
 	}
 
 	text, ok := helps[cmd]

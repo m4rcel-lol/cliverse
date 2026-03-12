@@ -13,7 +13,7 @@ import (
 // HandleSettings handles settings subcommands.
 func HandleSettings(ctx *Context) error {
 	if len(ctx.Args) == 0 {
-		return fmt.Errorf("usage: settings <update_password|add_key|remove_key|list_keys|sessions|export>")
+		return fmt.Errorf("usage: settings <update_password|add_key|add_key_url|remove_key|list_keys|sessions|export>")
 	}
 
 	switch ctx.Args[0] {
@@ -21,6 +21,8 @@ func HandleSettings(ctx *Context) error {
 		return settingsUpdatePassword(ctx)
 	case "add_key":
 		return settingsAddKey(ctx)
+	case "add_key_url":
+		return settingsAddKeyURL(ctx)
 	case "remove_key":
 		return settingsRemoveKey(ctx)
 	case "list_keys":
@@ -165,6 +167,63 @@ func settingsAddKey(ctx *Context) error {
 
 	fmt.Fprintf(ctx.W, "\033[32m✓ SSH key added\033[0m\n")
 	fmt.Fprintf(ctx.W, "  Fingerprint: %s\n", fp)
+	return nil
+}
+
+func settingsAddKeyURL(ctx *Context) error {
+	if len(ctx.Args) < 2 {
+		return fmt.Errorf("usage: settings add_key_url URL\n  Example: settings add_key_url ssh.mreow.org/m")
+	}
+
+	keyURL := ctx.Args[1]
+	keys, err := auth.FetchSSHKeysFromURL(keyURL)
+	if err != nil {
+		return fmt.Errorf("fetch SSH keys: %w", err)
+	}
+
+	imported := 0
+	for _, keyStr := range keys {
+		fp, err := auth.CalcFingerprint(keyStr)
+		if err != nil {
+			continue
+		}
+
+		// Skip duplicates.
+		existing, err := ctx.DB.GetSSHKeyByFingerprint(ctx.Ctx, fp)
+		if err != nil {
+			continue
+		}
+		if existing != nil {
+			fmt.Fprintf(ctx.W, "  \033[33mSkipped duplicate key: %s\033[0m\n", fp)
+			continue
+		}
+
+		parts := strings.Fields(keyStr)
+		name := parts[0]
+		if len(fp) > 8 {
+			name += " " + fp[len(fp)-8:]
+		}
+
+		key := &models.SSHKey{
+			ID:          uuid.New(),
+			UserID:      ctx.User.ID,
+			Name:        name,
+			PublicKey:   keyStr,
+			Fingerprint: fp,
+			CreatedAt:   time.Now(),
+		}
+		if err := ctx.DB.CreateSSHKey(ctx.Ctx, key); err != nil {
+			continue
+		}
+		fmt.Fprintf(ctx.W, "  Key added: %s\n", fp)
+		imported++
+	}
+
+	if imported == 0 {
+		return fmt.Errorf("no new keys imported (all duplicates or invalid)")
+	}
+
+	fmt.Fprintf(ctx.W, "\033[32m✓ Imported %d SSH key(s) from %s\033[0m\n", imported, keyURL)
 	return nil
 }
 
