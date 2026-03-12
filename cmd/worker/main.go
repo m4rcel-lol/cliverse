@@ -14,9 +14,14 @@ import (
 	"go.uber.org/zap"
 )
 
+// version is set at build time via -ldflags.
+var version = "dev"
+
 func main() {
 	logger, _ := zap.NewProduction()
 	defer logger.Sync()
+
+	logger.Info("starting CLIverse worker", zap.String("version", version))
 
 	cfg, err := config.Load()
 	if err != nil {

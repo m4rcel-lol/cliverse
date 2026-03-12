@@ -1,5 +1,6 @@
 package commands
 
+// registerAll registers all built-in command handlers with the dispatcher.
 func registerAll(d *Dispatcher) {
 	d.Register("post", HandlePost)
 	d.Register("timeline", HandleTimeline)
@@ -21,4 +22,10 @@ func registerAll(d *Dispatcher) {
 	d.Register("mod", HandleMod)
 	d.Register("admin", HandleAdmin)
 	d.Register("help", HandleHelp)
+	d.Register("info", HandleInfo)
+	d.Register("uptime", HandleUptime)
+	d.Register("version", HandleVersion)
+	d.Register("clear", HandleClear)
+	d.Register("ping", HandlePing)
+	d.Register("whoami", HandleWhoami)
 }

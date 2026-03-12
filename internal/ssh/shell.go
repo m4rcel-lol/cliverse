@@ -198,14 +198,15 @@ func (s *Shell) Handle(sess gossh.Session, user *models.User, sessionID uuid.UUI
 		args := parts[1:]
 
 		cmdCtx := &commands.Context{
-			Ctx:       ctx,
-			User:      user,
-			Args:      args,
-			W:         newSessionWriter(sess),
-			DB:        s.db,
-			Config:    s.config,
-			Logger:    s.logger,
-			SessionID: sessionID.String(),
+			Ctx:        ctx,
+			User:       user,
+			Args:       args,
+			W:          newSessionWriter(sess),
+			DB:         s.db,
+			Config:     s.config,
+			Logger:     s.logger,
+			SessionID:  sessionID.String(),
+			Dispatcher: s.dispatch,
 		}
 
 		if err := s.dispatch.Dispatch(cmdCtx, cmd, args); err != nil {
@@ -256,6 +257,11 @@ func (s *Shell) writeDashboard(w io.Writer, ctx context.Context, user *models.Us
 	}
 	if user.IsSilenced {
 		fmt.Fprintf(w, "  %s⚠ Your account is silenced. Posts are visible locally only.%s\r\n", ColorYellow, ColorReset)
+	}
+
+	// Show message of the day if configured.
+	if motd, err := s.db.GetSystemConfig(ctx, "motd"); err == nil && motd != "" {
+		fmt.Fprintf(w, "\r\n  %s📢 %s%s\r\n", ColorMagenta, motd, ColorReset)
 	}
 
 	fmt.Fprintf(w, "\r\n")

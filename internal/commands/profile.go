@@ -129,9 +129,9 @@ func profileSet(ctx *Context) error {
 	user := ctx.User
 	switch field {
 	case "display_name":
-		user.DisplayName = value
+		user.DisplayName = stripHTMLTags(value)
 	case "bio":
-		user.Bio = value
+		user.Bio = stripHTMLTags(value)
 	case "avatar_url":
 		user.AvatarURL = value
 	case "banner_url":

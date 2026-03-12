@@ -364,9 +364,12 @@ func (d *DB) GetHomeTimeline(ctx context.Context, userID uuid.UUID, limit, offse
 		FROM posts p
 		WHERE p.deleted=FALSE
 		  AND p.visibility IN ('public','unlisted')
-		  AND p.author_id IN (
-			SELECT following_id FROM follows
-			WHERE follower_id=$1 AND state='accepted' AND following_id IS NOT NULL
+		  AND (
+			p.author_id = $1
+			OR p.author_id IN (
+				SELECT following_id FROM follows
+				WHERE follower_id=$1 AND state='accepted' AND following_id IS NOT NULL
+			)
 		  )
 		ORDER BY p.created_at DESC LIMIT $2 OFFSET $3`,
 		userID, limit, offset)

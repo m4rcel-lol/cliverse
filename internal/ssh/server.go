@@ -1,25 +1,25 @@
 package ssh
 
 import (
-"context"
-"crypto/rand"
-"crypto/rsa"
-"crypto/x509"
-"encoding/pem"
-"fmt"
-"net"
-"os"
-"path/filepath"
-"time"
+	"context"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/pem"
+	"fmt"
+	"net"
+	"os"
+	"path/filepath"
+	"time"
 
-glssh "github.com/gliderlabs/ssh"
-"github.com/google/uuid"
-"github.com/m4rcel-lol/cliverse/internal/auth"
-"github.com/m4rcel-lol/cliverse/internal/config"
-"github.com/m4rcel-lol/cliverse/internal/db"
-"github.com/m4rcel-lol/cliverse/internal/models"
-"go.uber.org/zap"
-gossh "golang.org/x/crypto/ssh"
+	glssh "github.com/gliderlabs/ssh"
+	"github.com/google/uuid"
+	"github.com/m4rcel-lol/cliverse/internal/auth"
+	"github.com/m4rcel-lol/cliverse/internal/config"
+	"github.com/m4rcel-lol/cliverse/internal/db"
+	"github.com/m4rcel-lol/cliverse/internal/models"
+	"go.uber.org/zap"
+	gossh "golang.org/x/crypto/ssh"
 )
 
 // contextKey is an unexported type for SSH session context values.
@@ -52,39 +52,39 @@ func New(cfg *config.Config, database *db.DB, shell *Shell, logger *zap.Logger, 
 
 // Start begins listening for SSH connections.
 func (s *Server) Start() error {
-hostKey, err := s.loadOrGenerateHostKey()
-if err != nil {
-return fmt.Errorf("host key: %w", err)
-}
-s.server.AddHostKey(hostKey)
+	hostKey, err := s.loadOrGenerateHostKey()
+	if err != nil {
+		return fmt.Errorf("host key: %w", err)
+	}
+	s.server.AddHostKey(hostKey)
 
-addr := fmt.Sprintf(":%d", s.config.SSHPort)
-s.logger.Info("SSH server listening", zap.String("addr", addr))
-return s.server.ListenAndServe()
+	addr := fmt.Sprintf(":%d", s.config.SSHPort)
+	s.logger.Info("SSH server listening", zap.String("addr", addr))
+	return s.server.ListenAndServe()
 }
 
 // Stop gracefully shuts down the SSH server.
 func (s *Server) Stop(ctx context.Context) error {
-return s.server.Shutdown(ctx)
+	return s.server.Shutdown(ctx)
 }
 
 func (s *Server) buildServer() *glssh.Server {
-idleTimeout := s.config.SSHIdleTimeout
-if idleTimeout == 0 {
-idleTimeout = 30 * time.Minute
-}
+	idleTimeout := s.config.SSHIdleTimeout
+	if idleTimeout == 0 {
+		idleTimeout = 30 * time.Minute
+	}
 
-return &glssh.Server{
-Addr:        fmt.Sprintf(":%d", s.config.SSHPort),
-IdleTimeout: idleTimeout,
-Handler:     s.handleSession,
-PublicKeyHandler: func(ctx glssh.Context, key glssh.PublicKey) bool {
-return s.handlePublicKeyAuth(ctx, key)
-},
-PasswordHandler: func(ctx glssh.Context, password string) bool {
-return s.handlePasswordAuth(ctx, password)
-},
-}
+	return &glssh.Server{
+		Addr:        fmt.Sprintf(":%d", s.config.SSHPort),
+		IdleTimeout: idleTimeout,
+		Handler:     s.handleSession,
+		PublicKeyHandler: func(ctx glssh.Context, key glssh.PublicKey) bool {
+			return s.handlePublicKeyAuth(ctx, key)
+		},
+		PasswordHandler: func(ctx glssh.Context, password string) bool {
+			return s.handlePasswordAuth(ctx, password)
+		},
+	}
 }
 
 // handlePublicKeyAuth authenticates a connection via SSH public key.
@@ -198,129 +198,129 @@ func (s *Server) handlePasswordAuth(ctx glssh.Context, password string) bool {
 
 // handleSession runs the user's shell after successful authentication.
 func (s *Server) handleSession(sess glssh.Session) {
-userVal := sess.Context().Value(ctxKeyUser)
-if userVal == nil {
-fmt.Fprintln(sess, "Authentication error: no user in context")
-sess.Exit(1)
-return
-}
-user, ok := userVal.(*models.User)
-if !ok || user == nil {
-fmt.Fprintln(sess, "Authentication error: invalid user context")
-sess.Exit(1)
-return
-}
+	userVal := sess.Context().Value(ctxKeyUser)
+	if userVal == nil {
+		fmt.Fprintln(sess, "Authentication error: no user in context")
+		sess.Exit(1)
+		return
+	}
+	user, ok := userVal.(*models.User)
+	if !ok || user == nil {
+		fmt.Fprintln(sess, "Authentication error: invalid user context")
+		sess.Exit(1)
+		return
+	}
 
-if user.IsLocked {
-fmt.Fprintf(sess, "\r\n\033[31mYour account has been suspended. Contact the administrator.\033[0m\r\n")
-sess.Exit(1)
-return
-}
+	if user.IsLocked {
+		fmt.Fprintf(sess, "\r\n\033[31mYour account has been suspended. Contact the administrator.\033[0m\r\n")
+		sess.Exit(1)
+		return
+	}
 
-// Reject raw command execution for security — only our shell runs.
-if cmd := sess.RawCommand(); cmd != "" {
-fmt.Fprintf(sess, "\r\n\033[31mRemote command execution is not allowed.\033[0m\r\n")
-sess.Exit(1)
-return
-}
+	// Reject raw command execution for security — only our shell runs.
+	if cmd := sess.RawCommand(); cmd != "" {
+		fmt.Fprintf(sess, "\r\n\033[31mRemote command execution is not allowed.\033[0m\r\n")
+		sess.Exit(1)
+		return
+	}
 
-remoteAddr := sess.RemoteAddr().String()
-if remoteAddr == "" {
-remoteAddr = "unknown"
-}
+	remoteAddr := sess.RemoteAddr().String()
+	if remoteAddr == "" {
+		remoteAddr = "unknown"
+	}
 
-sessionID := uuid.New()
-now := time.Now()
-dbSession := &models.Session{
-ID:         sessionID,
-UserID:     user.ID,
-RemoteAddr: remoteAddr,
-CreatedAt:  now,
-LastSeenAt: now,
-Ended:      false,
-}
+	sessionID := uuid.New()
+	now := time.Now()
+	dbSession := &models.Session{
+		ID:         sessionID,
+		UserID:     user.ID,
+		RemoteAddr: remoteAddr,
+		CreatedAt:  now,
+		LastSeenAt: now,
+		Ended:      false,
+	}
 
-if err := s.db.CreateSession(context.Background(), dbSession); err != nil {
-s.logger.Warn("create session record failed", zap.Error(err))
-}
+	if err := s.db.CreateSession(context.Background(), dbSession); err != nil {
+		s.logger.Warn("create session record failed", zap.Error(err))
+	}
 
-s.logger.Info("session started",
-zap.String("username", user.Username),
-zap.String("remote", remoteAddr),
-zap.String("session_id", sessionID.String()))
+	s.logger.Info("session started",
+		zap.String("username", user.Username),
+		zap.String("remote", remoteAddr),
+		zap.String("session_id", sessionID.String()))
 
-s.shell.Handle(sess, user, sessionID)
+	s.shell.Handle(sess, user, sessionID)
 
-if err := s.db.EndSession(context.Background(), sessionID); err != nil {
-s.logger.Warn("end session failed", zap.Error(err))
-}
+	if err := s.db.EndSession(context.Background(), sessionID); err != nil {
+		s.logger.Warn("end session failed", zap.Error(err))
+	}
 
-s.logger.Info("session ended",
-zap.String("username", user.Username),
-zap.String("session_id", sessionID.String()))
+	s.logger.Info("session ended",
+		zap.String("username", user.Username),
+		zap.String("session_id", sessionID.String()))
 }
 
 // logAttempt writes a login attempt to the audit log.
 func (s *Server) logAttempt(userID *uuid.UUID, remoteAddr, action string, success bool, reason string) {
-details := fmt.Sprintf(`{"success":%v,"reason":%q}`, success, reason)
-_ = s.db.CreateAuditLog(context.Background(), &models.AuditLog{
-ID:        uuid.New(),
-ActorID:   userID,
-Action:    action,
-Target:    remoteAddr,
-Details:   details,
-IPAddr:    extractIP(remoteAddr),
-CreatedAt: time.Now(),
-})
+	details := fmt.Sprintf(`{"success":%v,"reason":%q}`, success, reason)
+	_ = s.db.CreateAuditLog(context.Background(), &models.AuditLog{
+		ID:        uuid.New(),
+		ActorID:   userID,
+		Action:    action,
+		Target:    remoteAddr,
+		Details:   details,
+		IPAddr:    extractIP(remoteAddr),
+		CreatedAt: time.Now(),
+	})
 }
 
 // extractIP strips the port from an address like "1.2.3.4:5678".
 func extractIP(addr string) string {
-host, _, err := net.SplitHostPort(addr)
-if err != nil {
-return addr
-}
-return host
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		return addr
+	}
+	return host
 }
 
 // loadOrGenerateHostKey loads the server's RSA host key from disk, generating
 // a new 4096-bit key if none exists.
 func (s *Server) loadOrGenerateHostKey() (gossh.Signer, error) {
-keyPath := filepath.Join("data", "host_key")
+	keyPath := filepath.Join("data", "host_key")
 
-if err := os.MkdirAll(filepath.Dir(keyPath), 0o700); err != nil {
-return nil, fmt.Errorf("create data dir: %w", err)
-}
+	if err := os.MkdirAll(filepath.Dir(keyPath), 0o700); err != nil {
+		return nil, fmt.Errorf("create data dir: %w", err)
+	}
 
-data, err := os.ReadFile(keyPath)
-if err == nil {
-signer, err := gossh.ParsePrivateKey(data)
-if err != nil {
-return nil, fmt.Errorf("parse host key: %w", err)
-}
-return signer, nil
-}
+	data, err := os.ReadFile(keyPath)
+	if err == nil {
+		signer, err := gossh.ParsePrivateKey(data)
+		if err != nil {
+			return nil, fmt.Errorf("parse host key: %w", err)
+		}
+		return signer, nil
+	}
 
-privKey, err := rsa.GenerateKey(rand.Reader, 4096)
-if err != nil {
-return nil, fmt.Errorf("generate host key: %w", err)
-}
+	privKey, err := rsa.GenerateKey(rand.Reader, 4096)
+	if err != nil {
+		return nil, fmt.Errorf("generate host key: %w", err)
+	}
 
-signer, err := gossh.NewSignerFromKey(privKey)
-if err != nil {
-return nil, fmt.Errorf("create signer: %w", err)
-}
+	signer, err := gossh.NewSignerFromKey(privKey)
+	if err != nil {
+		return nil, fmt.Errorf("create signer: %w", err)
+	}
 
-privPEM := pem.EncodeToMemory(&pem.Block{
-Type:  "RSA PRIVATE KEY",
-Bytes: x509.MarshalPKCS1PrivateKey(privKey),
-})
+	privPEM := pem.EncodeToMemory(&pem.Block{
+		Type:  "RSA PRIVATE KEY",
+		Bytes: x509.MarshalPKCS1PrivateKey(privKey),
+	})
 
-if err := os.WriteFile(keyPath, privPEM, 0o600); err != nil {
-s.logger.Warn("could not persist host key", zap.Error(err))
-} else {
-s.logger.Info("generated new SSH host key", zap.String("path", keyPath))
-}
+	if err := os.WriteFile(keyPath, privPEM, 0o600); err != nil {
+		s.logger.Warn("could not persist host key", zap.Error(err))
+	} else {
+		s.logger.Info("generated new SSH host key", zap.String("path", keyPath))
+	}
 
-return signer, nil
+	return signer, nil
 }

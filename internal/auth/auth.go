@@ -11,6 +11,8 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
 	"strings"
 	"time"
 
@@ -26,8 +28,8 @@ const (
 	argon2KeyLen  = 32
 	argon2SaltLen = 32
 
-	rateLimitMax     = 10
-	rateLimitWindow  = 15 * time.Minute
+	rateLimitMax    = 10
+	rateLimitWindow = 15 * time.Minute
 )
 
 // HashPassword hashes a password using Argon2id and returns the formatted hash string.
@@ -165,4 +167,62 @@ func GenerateRSAKeyPair() (privateKeyPEM string, publicKeyPEM string, err error)
 	publicKeyPEM = string(pem.EncodeToMemory(pubBlock))
 
 	return privateKeyPEM, publicKeyPEM, nil
+}
+
+// maxSSHKeyResponseBytes limits the response body when fetching SSH keys from a URL.
+const maxSSHKeyResponseBytes = 64 * 1024
+
+// sshKeyFetchClient is a shared HTTP client used for SSH key URL fetches.
+var sshKeyFetchClient = &http.Client{Timeout: 10 * time.Second}
+
+// FetchSSHKeysFromURL fetches SSH public keys from the given URL.
+// It returns a slice of valid authorized_keys lines parsed from the response.
+// The URL may omit the scheme; https:// is prepended automatically when needed.
+func FetchSSHKeysFromURL(rawURL string) ([]string, error) {
+	u := strings.TrimSpace(rawURL)
+	if u == "" {
+		return nil, errors.New("empty URL")
+	}
+	if !strings.HasPrefix(u, "http://") && !strings.HasPrefix(u, "https://") {
+		u = "https://" + u
+	}
+
+	resp, err := sshKeyFetchClient.Get(u)
+	if err != nil {
+		return nil, fmt.Errorf("fetch SSH keys: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("fetch SSH keys: HTTP %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxSSHKeyResponseBytes))
+	if err != nil {
+		return nil, fmt.Errorf("read SSH keys response: %w", err)
+	}
+
+	return ParseSSHKeys(string(body))
+}
+
+// ParseSSHKeys extracts valid SSH public key lines from raw text.
+// Lines that do not parse as authorized_keys entries are silently skipped.
+func ParseSSHKeys(text string) ([]string, error) {
+	var keys []string
+	for _, line := range strings.Split(text, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		// Validate the line as an authorized_keys entry.
+		_, _, _, _, err := gossh.ParseAuthorizedKey([]byte(line))
+		if err != nil {
+			continue
+		}
+		keys = append(keys, line)
+	}
+	if len(keys) == 0 {
+		return nil, errors.New("no valid SSH public keys found at URL")
+	}
+	return keys, nil
 }

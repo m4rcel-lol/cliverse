@@ -6,6 +6,7 @@ CLIverse is a fully federated **Fediverse instance with a CLI-based interface**.
 
 - **ActivityPub federation** — compatible with Mastodon, Pleroma, and the wider Fediverse
 - **SSH access** — log in with a password or SSH public key (no browser required)
+- **SSH key import** — import keys from a URL (e.g. `ssh.mreow.org/m`)
 - **Post & interact** — create posts, reply to threads, like, boost, and bookmark
 - **Timelines** — home, local, global (federated), and mentions
 - **Social graph** — follow/unfollow local and remote users, manage follow requests
@@ -16,6 +17,10 @@ CLIverse is a fully federated **Fediverse instance with a CLI-based interface**.
 - **Moderation** — admin tools for suspending accounts, silencing users, domain policies
 - **NodeInfo** — standard `/.well-known/nodeinfo` for instance discoverability
 - **Rate limiting** — SSH login rate limiting backed by Redis
+- **MOTD** — configurable message of the day shown on login
+- **Config validation** — startup checks for required settings
+- **Post sanitization** — HTML tags stripped from user-created posts
+- **Build versioning** — embedded version via `-ldflags` at build time
 
 ## Quick Start (Docker Compose)
 
@@ -29,6 +34,24 @@ docker compose up -d
 
 # 3. Connect via SSH
 ssh -p 6969 <username>@<your-domain>
+```
+
+## Development
+
+A **Makefile** is provided for common tasks:
+
+```bash
+make build          # Compile the main server binary
+make build-worker   # Compile the federation worker binary
+make all            # Build both binaries
+make test           # Run all tests with race detection
+make vet            # Run go vet
+make lint           # vet + test
+make fmt            # Format all Go source files
+make clean          # Remove build artifacts
+make docker         # Build Docker images with Compose
+make docker-up      # Start all services
+make docker-down    # Stop all services
 ```
 
 ## Requirements
@@ -59,18 +82,29 @@ All configuration is via environment variables (see `.env.example`):
 Once connected via SSH, type `help` to see all commands. Key commands:
 
 ```
-post global "Hello Fediverse!"     # Create a public post
-post reply <ID> "Nice!"            # Reply to a post
-timeline home                      # View home timeline
-timeline global                    # View federated timeline
-follow add @user@mastodon.social   # Follow a remote user
-block add @user                    # Block a user
-mute add @user                     # Mute a user
-report user @user "spam"           # Report a user
-search users "alice"               # Search for users
-notif list                         # View notifications
-settings add_key "ssh-ed25519 …"   # Add an SSH key
-help                               # Full command list
+post global "Hello Fediverse!"         # Create a public post
+post local "Local-only post"           # Create an unlisted local post
+post reply <ID> "Nice!"               # Reply to a post
+timeline home                          # View home timeline
+timeline global                        # View federated timeline
+follow add @user@mastodon.social       # Follow a remote user
+block add @user                        # Block a user
+mute add @user                         # Mute a user
+report user @user "spam"               # Report a user
+search users "alice"                   # Search for users
+notif list                             # View notifications
+settings add_key "ssh-ed25519 …"       # Add an SSH key directly
+settings add_key_url ssh.mreow.org/m   # Import SSH keys from a URL
+info                                   # Show instance info
+uptime                                 # Show server uptime
+version                                # Show build version
+whoami                                 # Show your handle and role
+ping                                   # Connectivity check
+clear                                  # Clear the terminal
+admin create_user alice                # Create a user account
+admin create_user alice ssh.mreow.org  # Create user + import SSH keys
+admin add_key_url alice ssh.mreow.org  # Import SSH keys for a user
+help                                   # Full command list
 ```
 
 ## Federation
@@ -90,7 +124,7 @@ internal/
   activitypub/   — ActivityPub protocol (inbox, outbox, signatures, nodeinfo)
   auth/          — Argon2id password hashing, SSH key fingerprints, rate limiting
   commands/      — CLI command handlers (post, timeline, follow, block, mute, …)
-  config/        — Environment-based configuration
+  config/        — Environment-based configuration with validation
   db/            — PostgreSQL data layer
   federation/    — Background delivery worker
   models/        — Data model definitions

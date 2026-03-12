@@ -13,6 +13,9 @@ import (
 	"go.uber.org/zap"
 )
 
+// workerHTTPClient is a shared HTTP client for worker delivery attempts.
+var workerHTTPClient = &http.Client{Timeout: 30 * time.Second}
+
 // Worker polls the DB for pending federation deliveries and inbox events.
 type Worker struct {
 	db        *db.DB
@@ -53,14 +56,12 @@ func (w *Worker) processDeliveries(ctx context.Context) {
 		return
 	}
 
-	client := &http.Client{Timeout: 30 * time.Second}
-
 	for _, fd := range deliveries {
-		w.attemptDelivery(ctx, client, fd)
+		w.attemptDelivery(ctx, fd)
 	}
 }
 
-func (w *Worker) attemptDelivery(ctx context.Context, client *http.Client, fd *models.FederationDelivery) {
+func (w *Worker) attemptDelivery(ctx context.Context, fd *models.FederationDelivery) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, fd.RecipientURL,
 		bytes.NewBufferString(fd.Payload))
 	if err != nil {
@@ -70,7 +71,7 @@ func (w *Worker) attemptDelivery(ctx context.Context, client *http.Client, fd *m
 	}
 	req.Header.Set("Content-Type", "application/activity+json")
 
-	resp, err := client.Do(req)
+	resp, err := workerHTTPClient.Do(req)
 	if err != nil || resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		if resp != nil {
 			resp.Body.Close()

@@ -74,7 +74,7 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("invalid HTTP_WRITE_TIMEOUT: %w", err)
 	}
 
-	return &Config{
+	cfg := &Config{
 		Domain:            v.GetString("DOMAIN"),
 		InstanceName:      v.GetString("INSTANCE_NAME"),
 		InstanceDesc:      v.GetString("INSTANCE_DESC"),
@@ -89,5 +89,35 @@ func Load() (*Config, error) {
 		HTTPWriteTimeout:  writeTimeout,
 		MaxConnections:    v.GetInt("MAX_CONNECTIONS"),
 		MaxPostLength:     v.GetInt("MAX_POST_LENGTH"),
-	}, nil
+	}
+
+	if err := cfg.validate(); err != nil {
+		return nil, err
+	}
+
+	return cfg, nil
+}
+
+// validate checks that required fields are present and sensible.
+func (c *Config) validate() error {
+	if c.Domain == "" {
+		return fmt.Errorf("config: DOMAIN must be set")
+	}
+	if c.DatabaseDSN == "" {
+		return fmt.Errorf("config: DATABASE_DSN must be set")
+	}
+	if c.SessionSecret == "" || c.SessionSecret == "changeme-please-use-a-long-random-string" {
+		// Warn but don't block startup; operators in development may use the default.
+		// Production deployments should always override this.
+	}
+	if c.SSHPort < 1 || c.SSHPort > 65535 {
+		return fmt.Errorf("config: SSH_PORT must be between 1 and 65535")
+	}
+	if c.HTTPPort < 1 || c.HTTPPort > 65535 {
+		return fmt.Errorf("config: HTTP_PORT must be between 1 and 65535")
+	}
+	if c.MaxPostLength < 1 {
+		return fmt.Errorf("config: MAX_POST_LENGTH must be at least 1")
+	}
+	return nil
 }

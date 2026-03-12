@@ -4,9 +4,19 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
+	"time"
 )
+
+// fetchClient is a shared HTTP client with a reasonable timeout used for
+// outbound ActivityPub requests (actor/note fetches, WebFinger lookups).
+var fetchClient = &http.Client{Timeout: 15 * time.Second}
+
+// maxFetchResponseBytes limits the size of remote responses to prevent denial
+// of service via excessively large payloads. Currently 2 MiB.
+const maxFetchResponseBytes = 2 << 20
 
 // FetchActor fetches and parses a remote ActivityPub actor.
 func FetchActor(ctx context.Context, actorURL string) (*Actor, error) {
@@ -16,7 +26,7 @@ func FetchActor(ctx context.Context, actorURL string) (*Actor, error) {
 	}
 	req.Header.Set("Accept", "application/activity+json")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := fetchClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("activitypub/fetch: GET %s: %w", actorURL, err)
 	}
@@ -27,7 +37,7 @@ func FetchActor(ctx context.Context, actorURL string) (*Actor, error) {
 	}
 
 	var actor Actor
-	if err := json.NewDecoder(resp.Body).Decode(&actor); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, maxFetchResponseBytes)).Decode(&actor); err != nil {
 		return nil, fmt.Errorf("activitypub/fetch: decode actor: %w", err)
 	}
 	return &actor, nil
@@ -41,7 +51,7 @@ func FetchNote(ctx context.Context, noteURL string) (*Note, error) {
 	}
 	req.Header.Set("Accept", "application/activity+json")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := fetchClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("activitypub/fetch: GET %s: %w", noteURL, err)
 	}
@@ -52,7 +62,7 @@ func FetchNote(ctx context.Context, noteURL string) (*Note, error) {
 	}
 
 	var note Note
-	if err := json.NewDecoder(resp.Body).Decode(&note); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, maxFetchResponseBytes)).Decode(&note); err != nil {
 		return nil, fmt.Errorf("activitypub/fetch: decode note: %w", err)
 	}
 	return &note, nil
@@ -70,7 +80,7 @@ func WebFinger(ctx context.Context, username, domain string) (*Actor, error) {
 	}
 	req.Header.Set("Accept", "application/json")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := fetchClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("activitypub/webfinger: GET %s: %w", wfURL, err)
 	}
@@ -81,21 +91,21 @@ func WebFinger(ctx context.Context, username, domain string) (*Actor, error) {
 	}
 
 	var wf WebFingerResponse
-	if err := json.NewDecoder(resp.Body).Decode(&wf); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, maxFetchResponseBytes)).Decode(&wf); err != nil {
 		return nil, fmt.Errorf("activitypub/webfinger: decode response: %w", err)
 	}
 
 	// Find the self link with type application/activity+json.
-	var actorURL string
+	var actorHref string
 	for _, link := range wf.Links {
 		if link.Rel == "self" && link.Type == "application/activity+json" {
-			actorURL = link.Href
+			actorHref = link.Href
 			break
 		}
 	}
-	if actorURL == "" {
+	if actorHref == "" {
 		return nil, fmt.Errorf("activitypub/webfinger: no activity+json self link for %s@%s", username, domain)
 	}
 
-	return FetchActor(ctx, actorURL)
+	return FetchActor(ctx, actorHref)
 }
