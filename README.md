@@ -35,15 +35,9 @@ go run ./cmd/hash-password
 # Enter your desired admin password at the prompt.
 # Copy the printed hash into ADMIN_PASSWORD_HASH in your .env file.
 
-# 3a. Start the full stack with the built-in Caddy reverse proxy
-#     (app + worker + PostgreSQL + Redis + Caddy)
-docker compose --profile caddy up -d
-
-# 3b. Or, if you already have Caddy (or another reverse proxy) running on the
-#     host and your domain is already configured, start without Caddy:
+# 3. Start the stack (app + worker + PostgreSQL + Redis)
 docker compose up -d
-# Then point your existing reverse proxy at 127.0.0.1:8080 for HTTP traffic.
-# See deploy/caddy/Caddyfile for the recommended proxy routes.
+# Point your reverse proxy at 127.0.0.1:8080 for HTTP traffic.
 
 # 4. Connect via SSH as the admin user (default username: admin)
 ssh -p 6969 admin@<your-domain>
@@ -68,8 +62,7 @@ make lint           # vet + test
 make fmt            # Format all Go source files
 make clean          # Remove build artifacts
 make docker         # Build Docker images with Compose
-make docker-up      # Start all services (without Caddy)
-make docker-up-caddy # Start all services including the built-in Caddy reverse proxy
+make docker-up      # Start all services
 make docker-down    # Stop all services
 ```
 
@@ -77,7 +70,7 @@ make docker-down    # Stop all services
 
 - Docker & Docker Compose
 - A domain name with DNS pointing to your server
-- Ports 22 (or 6969) open; ports 80 and 443 only required if using the built-in Caddy profile
+- Ports 22 (or 6969), 80, and 443 open (handle TLS termination with your own reverse proxy)
 
 ## Configuration
 
@@ -151,7 +144,6 @@ internal/
   models/        — Data model definitions
   ssh/           — SSH server and interactive shell
 migrations/      — PostgreSQL schema
-deploy/caddy/    — Caddy reverse-proxy configuration
 ```
 
 ## License
