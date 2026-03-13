@@ -1,6 +1,7 @@
 # Binaries
 cliverse
 worker
+hash-password
 *.exe
 *.exe~
 *.dll
