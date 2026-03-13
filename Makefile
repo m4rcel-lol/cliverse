@@ -1,9 +1,10 @@
 BINARY    := cliverse
 WORKER    := worker
+HASHPW    := hash-password
 VERSION   ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 LDFLAGS   := -s -w -X main.version=$(VERSION)
 
-.PHONY: build build-worker test vet fmt lint clean docker run help
+.PHONY: build build-worker build-hash-password test vet fmt lint clean docker run help
 
 ## build: compile the main server binary
 build:
@@ -12,6 +13,10 @@ build:
 ## build-worker: compile the federation worker binary
 build-worker:
 	CGO_ENABLED=0 go build -ldflags="$(LDFLAGS)" -o $(WORKER) ./cmd/worker
+
+## build-hash-password: compile the admin password hashing helper
+build-hash-password:
+	CGO_ENABLED=0 go build -o $(HASHPW) ./cmd/hash-password
 
 ## all: build both binaries
 all: build build-worker
@@ -33,7 +38,7 @@ lint: vet test
 
 ## clean: remove build artifacts
 clean:
-	rm -f $(BINARY) $(WORKER)
+	rm -f $(BINARY) $(WORKER) $(HASHPW)
 
 ## docker: build Docker images with Compose
 docker:

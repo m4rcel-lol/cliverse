@@ -12,12 +12,14 @@ import (
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/httprate"
+	"github.com/google/uuid"
 	"github.com/m4rcel-lol/cliverse/internal/activitypub"
 	"github.com/m4rcel-lol/cliverse/internal/auth"
 	"github.com/m4rcel-lol/cliverse/internal/commands"
 	"github.com/m4rcel-lol/cliverse/internal/config"
 	"github.com/m4rcel-lol/cliverse/internal/db"
 	"github.com/m4rcel-lol/cliverse/internal/federation"
+	"github.com/m4rcel-lol/cliverse/internal/models"
 	internalssh "github.com/m4rcel-lol/cliverse/internal/ssh"
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
@@ -46,6 +48,8 @@ func main() {
 		logger.Fatal("connect db", zap.Error(err))
 	}
 	defer database.Close()
+
+	bootstrapAdmin(cfg, database, logger)
 
 	redisOpts, err := redis.ParseURL(cfg.RedisURL)
 	if err != nil {
@@ -118,4 +122,56 @@ func main() {
 	if err := sshServer.Stop(shutCtx); err != nil {
 		logger.Error("ssh server shutdown", zap.Error(err))
 	}
+}
+
+// bootstrapAdmin creates the initial admin user on a fresh instance if
+// ADMIN_PASSWORD_HASH is set and no admin user exists yet.
+func bootstrapAdmin(cfg *config.Config, database *db.DB, logger *zap.Logger) {
+	if cfg.AdminPasswordHash == "" {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	hasAdmin, err := database.HasAdminUser(ctx)
+	if err != nil {
+		logger.Error("bootstrap admin: check existing admins", zap.Error(err))
+		return
+	}
+	if hasAdmin {
+		return
+	}
+
+	privKey, pubKey, err := auth.GenerateRSAKeyPair()
+	if err != nil {
+		logger.Error("bootstrap admin: generate key pair", zap.Error(err))
+		return
+	}
+
+	now := time.Now()
+	domain := cfg.Domain
+	username := cfg.AdminUsername
+	user := &models.User{
+		ID:              uuid.New(),
+		Username:        username,
+		Domain:          domain,
+		PasswordHash:    cfg.AdminPasswordHash,
+		PrivateKey:      privKey,
+		PublicKey:       pubKey,
+		APID:            fmt.Sprintf("https://%s/users/%s", domain, username),
+		InboxURL:        fmt.Sprintf("https://%s/users/%s/inbox", domain, username),
+		OutboxURL:       fmt.Sprintf("https://%s/users/%s/outbox", domain, username),
+		IsAdmin:         true,
+		ForcePassChange: false,
+		CreatedAt:       now,
+		UpdatedAt:       now,
+	}
+
+	if err := database.CreateUser(ctx, user); err != nil {
+		logger.Error("bootstrap admin: create user", zap.Error(err), zap.String("username", username))
+		return
+	}
+
+	logger.Info("bootstrap: created initial admin user", zap.String("username", username))
 }
