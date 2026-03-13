@@ -6,12 +6,14 @@ COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w -X main.version=${VERSION}" -o /cliverse ./cmd/cliverse
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /hash-password ./cmd/hash-password
 
 FROM alpine:3.19
 RUN apk add --no-cache ca-certificates tzdata
 RUN adduser -D -u 1000 cliverse
 WORKDIR /app
 COPY --from=builder /cliverse /app/cliverse
+COPY --from=builder /hash-password /app/hash-password
 COPY migrations/ /app/migrations/
 RUN mkdir -p /app/data && chown -R cliverse:cliverse /app
 USER cliverse
