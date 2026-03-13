@@ -44,9 +44,13 @@ clean:
 docker:
 	docker compose build
 
-## docker-up: start all services
+## docker-up: start all services (without Caddy; use an existing reverse proxy)
 docker-up:
 	docker compose up -d
+
+## docker-up-caddy: start all services including the built-in Caddy reverse proxy
+docker-up-caddy:
+	docker compose --profile caddy up -d
 
 ## docker-down: stop all services
 docker-down:
