@@ -113,8 +113,36 @@ func TestValidateAcceptsGoodConfig(t *testing.T) {
 		SSHPort:       6969,
 		HTTPPort:      8080,
 		MaxPostLength: 500,
+		AdminUsername: "admin",
 	}
 	if err := cfg.validate(); err != nil {
 		t.Errorf("unexpected validation error: %v", err)
+	}
+}
+
+func TestValidateRejectsEmptyAdminUsername(t *testing.T) {
+	cfg := &Config{
+		Domain:        "example.com",
+		DatabaseDSN:   "postgres://localhost/test",
+		SessionSecret: "test-secret",
+		SSHPort:       6969,
+		HTTPPort:      8080,
+		MaxPostLength: 500,
+		AdminUsername: "",
+	}
+	if err := cfg.validate(); err == nil {
+		t.Error("expected validation error for empty AdminUsername")
+	}
+}
+
+func TestLoadDefaultAdminUsername(t *testing.T) {
+	os.Unsetenv("ADMIN_USERNAME")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() returned unexpected error: %v", err)
+	}
+	if cfg.AdminUsername != "admin" {
+		t.Errorf("expected AdminUsername=admin, got %q", cfg.AdminUsername)
 	}
 }

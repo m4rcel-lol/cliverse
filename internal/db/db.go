@@ -127,6 +127,16 @@ func (d *DB) DeleteUser(ctx context.Context, id uuid.UUID) error {
 	return err
 }
 
+// HasAdminUser returns true if at least one admin user exists in the database.
+func (d *DB) HasAdminUser(ctx context.Context) (bool, error) {
+	var exists bool
+	err := d.pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM users WHERE is_admin = true LIMIT 1)`).Scan(&exists)
+	if err != nil {
+		return false, err
+	}
+	return exists, nil
+}
+
 func (d *DB) ListUsers(ctx context.Context, limit, offset int) ([]*models.User, error) {
 	rows, err := d.pool.Query(ctx, `
 		SELECT id, username, domain, display_name, bio, avatar_url, banner_url,

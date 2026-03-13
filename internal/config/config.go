@@ -25,6 +25,7 @@ type Config struct {
 	RedisURL string
 
 	// Security
+	AdminUsername     string
 	AdminPasswordHash string
 	SessionSecret     string
 
@@ -52,6 +53,7 @@ func Load() (*Config, error) {
 	v.SetDefault("HTTP_PORT", 8080)
 	v.SetDefault("DATABASE_DSN", "postgres://cliverse:cliverse@localhost:5432/cliverse?sslmode=disable")
 	v.SetDefault("REDIS_URL", "redis://localhost:6379/0")
+	v.SetDefault("ADMIN_USERNAME", "admin")
 	v.SetDefault("SESSION_SECRET", "changeme-please-use-a-long-random-string")
 	v.SetDefault("SSH_IDLE_TIMEOUT", "30m")
 	v.SetDefault("HTTP_READ_TIMEOUT", "30s")
@@ -82,6 +84,7 @@ func Load() (*Config, error) {
 		HTTPPort:          v.GetInt("HTTP_PORT"),
 		DatabaseDSN:       v.GetString("DATABASE_DSN"),
 		RedisURL:          v.GetString("REDIS_URL"),
+		AdminUsername:     v.GetString("ADMIN_USERNAME"),
 		AdminPasswordHash: v.GetString("ADMIN_PASSWORD_HASH"),
 		SessionSecret:     v.GetString("SESSION_SECRET"),
 		SSHIdleTimeout:    idleTimeout,
@@ -118,6 +121,9 @@ func (c *Config) validate() error {
 	}
 	if c.MaxPostLength < 1 {
 		return fmt.Errorf("config: MAX_POST_LENGTH must be at least 1")
+	}
+	if c.AdminUsername == "" {
+		return fmt.Errorf("config: ADMIN_USERNAME must not be empty")
 	}
 	return nil
 }

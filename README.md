@@ -29,12 +29,23 @@ CLIverse is a fully federated **Fediverse instance with a CLI-based interface**.
 cp .env.example .env
 $EDITOR .env
 
-# 2. Start the full stack (app + worker + PostgreSQL + Redis + Caddy)
+# 2. Generate an Argon2id password hash for the initial admin account
+#    (requires Go 1.23+)
+go run ./cmd/hash-password
+# Enter your desired admin password at the prompt.
+# Copy the printed hash into ADMIN_PASSWORD_HASH in your .env file.
+
+# 3. Start the full stack (app + worker + PostgreSQL + Redis + Caddy)
 docker compose up -d
 
-# 3. Connect via SSH
-ssh -p 6969 <username>@<your-domain>
+# 4. Connect via SSH as the admin user (default username: admin)
+ssh -p 6969 admin@<your-domain>
 ```
+
+On first startup, if `ADMIN_PASSWORD_HASH` is set in `.env` and no admin user exists yet,
+the application automatically creates the initial admin account (username controlled by
+`ADMIN_USERNAME`, defaulting to `admin`). The admin can then create additional users with
+`admin create_user <username>`.
 
 ## Development
 
@@ -74,6 +85,8 @@ All configuration is via environment variables (see `.env.example`):
 | `DATABASE_DSN`       | (postgres://...)          | PostgreSQL connection string       |
 | `REDIS_URL`          | `redis://localhost:6379/0`| Redis connection URL               |
 | `SESSION_SECRET`     | (changeme)                | Secret for session tokens          |
+| `ADMIN_USERNAME`     | `admin`                   | Username for the bootstrap admin   |
+| `ADMIN_PASSWORD_HASH`| _(empty)_                 | Argon2id hash; triggers admin bootstrap on first start |
 | `MAX_POST_LENGTH`    | `500`                     | Maximum characters per post        |
 | `SSH_IDLE_TIMEOUT`   | `30m`                     | SSH session idle timeout           |
 

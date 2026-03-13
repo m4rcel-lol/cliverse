@@ -14,6 +14,7 @@ require (
 	github.com/spf13/viper v1.18.2
 	go.uber.org/zap v1.27.1
 	golang.org/x/crypto v0.31.0
+	golang.org/x/term v0.27.0
 )
 
 require (
