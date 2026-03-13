@@ -29,17 +29,22 @@ CLIverse is a fully federated **Fediverse instance with a CLI-based interface**.
 cp .env.example .env
 $EDITOR .env
 
-# 2. Generate an Argon2id password hash for the initial admin account
-#    (requires Go 1.23+)
-go run ./cmd/hash-password
+# 2. Build the Docker images
+docker compose build
+
+# 3. Generate an Argon2id password hash for the initial admin account
+docker compose run --rm app /app/hash-password
 # Enter your desired admin password at the prompt.
 # Copy the printed hash into ADMIN_PASSWORD_HASH in your .env file.
 
-# 3. Start the stack (app + worker + PostgreSQL + Redis)
+# Alternatively, if Go 1.23+ is available on the host:
+#   go build -o hash-password ./cmd/hash-password && ./hash-password
+
+# 4. Start the stack (app + worker + PostgreSQL + Redis)
 docker compose up -d
 # Point your reverse proxy at 127.0.0.1:8080 for HTTP traffic.
 
-# 4. Connect via SSH as the admin user (default username: admin)
+# 5. Connect via SSH as the admin user (default username: admin)
 ssh -p 6969 admin@<your-domain>
 ```
 

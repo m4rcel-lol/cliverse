@@ -3,16 +3,18 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"os"
+	"os/exec"
+	"strings"
 
 	"github.com/m4rcel-lol/cliverse/internal/auth"
-	"golang.org/x/term"
 )
 
 func main() {
 	fmt.Print("Enter password: ")
-	password, err := term.ReadPassword(int(os.Stdin.Fd()))
+	password, err := readPassword()
 	fmt.Println()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error reading password: %v\n", err)
@@ -23,11 +25,32 @@ func main() {
 		os.Exit(1)
 	}
 
-	hash, err := auth.HashPassword(string(password))
+	hash, err := auth.HashPassword(password)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
 	}
 
 	fmt.Println(hash)
+}
+
+// readPassword reads a line from stdin. It disables terminal echo via stty
+// when stdin is a terminal so the password is not displayed. If stty is
+// unavailable the password is read in plain text.
+func readPassword() (string, error) {
+	// Attempt to hide input by disabling terminal echo.
+	sttyOff := exec.Command("stty", "-echo")
+	sttyOff.Stdin = os.Stdin
+	echoDisabled := sttyOff.Run() == nil
+	if echoDisabled {
+		defer func() {
+			sttyOn := exec.Command("stty", "echo")
+			sttyOn.Stdin = os.Stdin
+			sttyOn.Run()
+		}()
+	}
+
+	scanner := bufio.NewScanner(os.Stdin)
+	scanner.Scan()
+	return strings.TrimRight(scanner.Text(), "\r\n"), scanner.Err()
 }
